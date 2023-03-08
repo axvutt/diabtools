@@ -113,9 +113,9 @@ def main():
     # Transform coordinates
     r_NN_2 = 0.5945
     r0 = 1.56814067
-    R0 = 40
+    R0 = 5
     coords[:,0] = (coords[:,0]+0.54725)/1.56814067 - 1
-    coords[:,1] = np.arctan(coords[:,1]/R0)*2/np.pi
+    coords[:,1] = 1 - np.exp(-(coords[:,1]-R0)/R0)
 
     iu = np.unique(ii)
     ju = np.unique(jj)
@@ -190,7 +190,7 @@ def main():
                 ]
 
         props = PlotProps(
-                x_lim_min = 0.0 ,
+                x_lim_min = -0.5 ,
                 x_lim_max =  1.0 ,
                 x_step = 0.1, 
                 x_label = r"$y$" ,
