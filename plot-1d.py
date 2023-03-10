@@ -138,7 +138,8 @@ def main(argv):
     r_NN_2 = 0.5945
     r0 = 1.56814067
     R0 = 5
-    coords[:,0] = (coords[:,0]+0.54725)/1.56814067 - 1
+    coords[:,0] = coords[:,0]+r_NN_2
+    coords[:,0] = 1 - np.exp(-(coords[:,0]-r0)/r0)
     coords[:,1] = 1 - np.exp(-(coords[:,1]-R0)/R0)
 
     # Common plotting options
@@ -148,7 +149,7 @@ def main(argv):
     props = GetPlotProperties(axis_dim)
 
     # Diabatization
-
+    
 
 
     # Dimensions of the cut coordinates
