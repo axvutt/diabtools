@@ -8,6 +8,7 @@ import sys
 from copy import *
 import ConstantsSI as SI
 from dataclasses import dataclass
+from typing import Dict, List, Tuple
 
 line_cycler = cyc(
         color=['red', 'green', 'blue', 'magenta', 'cyan', 'y'], 
@@ -109,54 +110,85 @@ def GetPlotProperties(d):
                 )
     return props
 
-def main(argv):
-    assert(len(argv)==5 or len(argv)==6)
-    file_name = argv[1]
-    axis_dim, cut_coord_indices = ParseChoice(argv[2:5])
-    save_figure = False
-    if argv[-1] == "-s":
-        save_figure = True
-    
-    # Read reference energies
-    e_ref = np.loadtxt('ref_en.txt')
+def polyN(coeffs: Dict[tuple, float], x: Tuple[np.ndarray, ...]):
+    """ Calculate multivariate polynomial in Nd dimensions of arbitrary order.
 
+    coeffs
+    Dictionnary whose:
+        - keys are tuples of length Nd with non-negative integer entries.
+            Each tuple is associated to a monomial. The k-th partial order is the k-th
+            entry in the tuple (so the total monomial order is the sum of the entries).
+            e.g.: (2,0,1) represents x**2 * z (in 3D)
+                  (1,1,2,5) represents x * y * z**2 * t**5
+        - values are the coefficients multiplied by the associated monomial.
+
+    x
+    Nd-Tuple of Nd-dimensional meshgrids
+
+    Returns:
+    P
+    Nd-dimensional np.ndarray containing the values of the polynomial over the given x meshgrids.
+
+    """
+    Nd = len(x)
+    P = 0
+    for indices in coeffs:
+        monomial = 1
+        for k in range(Nd):
+            monomial *= x[k]**indices[k]
+        P += coeffs[indices] * monomial
+    return P
+
+
+def loadData(file_name, indices_cols, coords_cols, energies_cols):
+    """ Read data from file and return it in arrays of indices, coordinates and energies """
     # Read data
     data = np.loadtxt(file_name, skiprows=1)
     with open(file_name, 'r') as f:
         header = f.readline()
     header_names = header.split()
+
+    # Extract indices, coordinates and energies
+    indices = data[:,indices_cols].astype(int)
+    coords = data[:,coords_cols]
+    energies = data[:,energies_cols]
     
-    indices = data[:,0:3].astype(int)
-    coords = data[:,3:6]
+    return indices, coords, energies 
+
+
+def getCutsList(axis_dim, cut_coord_indices, dims):
+    """ Get the list of tuples corresponding to a cut.
+
+    Parameters
+    axis_dim
+    index of the dimension which is chosen as the x-axis
+
+    cut_coord_indices
+    list of lists. Each sublist contains the coordinate indices where we want to have a cut.
+    The sublist in dimension 
+
+    Returns
+    dims_cut
+    Tuple whose entries are the dimensions which are cut
+
+    cuts_list
+    List of tuples, each containing the indices where the coordinates specified in dims_cut are cut
+
+    e.g.
+    axis_dim = 0
+    cut_coord_indices = [[12],[23,24]]
     dims = 3
-    energies_cols = [6,7,8,9]
-    energies_a = data[:,energies_cols]
-    n_states = len(energies_cols)
-    n_points = len(indices[:,0])
+    Returns
+    dims_cut = (1,2)
+    cuts_list = [(12,23), (12,24)]
     
-    # Transform coordinates
-    r_NN_2 = 0.5945
-    r0 = 1.56814067
-    R0 = 5
-    coords[:,0] = coords[:,0]+r_NN_2
-    coords[:,0] = 1 - np.exp(-(coords[:,0]-r0)/r0)
-    coords[:,1] = 1 - np.exp(-(coords[:,1]-R0)/R0)
-
-    # Common plotting options
-    coord_names = [r"$r$",r"$R$",r"$\theta$"]
-    coord_units = [r"~\AA{}",r"~\AA{}",r"${}^{\circ}$"]
-
-    props = GetPlotProperties(axis_dim)
-
-    # Diabatization
-    
-
-
-    # Dimensions of the cut coordinates
+    """
+    # Dimension indices of the cut coordinates
     dims_cut = []
     for d in range(dims):
         if d != axis_dim :
             dims_cut.append(d)
+    dims_cut = tuple(dims_cut)
    
     # List of all indices where we have a cut
     # First, count them
@@ -167,7 +199,7 @@ def main(argv):
         n_cuts_per_dim[d] = n_cuts_d
         n_cuts *= n_cuts_d
 
-    # Form the list: each sublist gets an index from each 
+    # Form the list: each sublist gets an index from each coordinate
     cuts_list = []
     for i_cut in range(n_cuts):
         i_cut_rem = i_cut
@@ -176,7 +208,55 @@ def main(argv):
             i_cut_d = i_cut_rem % n_cuts_per_dim[d]
             i_cut_rem = (i_cut_rem - i_cut_d) // n_cuts_per_dim[d]
             indices_single_cut.append(cut_coord_indices[d][i_cut_d])
-        cuts_list.append(indices_single_cut)
+        cuts_list.append(tuple(indices_single_cut))
+
+    return dims_cut, cuts_list
+
+
+def main(argv):
+
+    # Parse stdin
+    assert(len(argv)==5 or len(argv)==6)
+    file_name = argv[1]
+    axis_dim, cut_coord_indices = ParseChoice(argv[2:5])
+    save_figure = False
+    if argv[-1] == "-s":
+        save_figure = True
+    
+    # Read reference energies
+    e_ref = np.loadtxt('ref_en.txt')
+
+    # Read data from file
+    indices_cols = [0,1,2]
+    coords_cols = [3,4,5]
+    energies_cols = [6,7,8,9]
+
+    indices, coords, energies_a = loadData(file_name, indices_cols, coords_cols, energies_cols)
+    dims = len(indices_cols)
+    n_states = len(energies_cols)
+    n_points = len(indices[:,0])
+
+    # Transform coordinates
+    r_NN_2 = 0.5945
+    r0 = 1.56814067
+    R0 = 5
+    coords[:,0] = coords[:,0]+r_NN_2
+    coords[:,0] = 1 - np.exp(-(coords[:,0]-r0)/r0)
+    coords[:,1] = 1 - np.exp(-(coords[:,1]-R0)/R0)
+
+    ### Diabatization
+    
+
+
+    ### Plot
+    # Common plotting options
+    coord_names = [r"$r$",r"$R$",r"$\theta$"]
+    coord_units = [r"~\AA{}",r"~\AA{}",r"${}^{\circ}$"]
+
+    props = GetPlotProperties(axis_dim)
+
+    # Dimension indices of the cut coordinates
+    dims_cut, cuts_list = getCutsList(axis_dim, cut_coord_indices, dims)
 
     # For each cut stride, make a plot
     for indices_cut in cuts_list:
@@ -185,7 +265,8 @@ def main(argv):
             select = np.logical_and(select, (indices[:,d] == i)[:, np.newaxis])
 
         if np.any(select) is False:
-            break
+            Warning("Selection {} yields no values. Skipping")
+            continue
 
         x = coords[:,axis_dim][select.flatten()]
         sort_idx = np.argsort(x)
