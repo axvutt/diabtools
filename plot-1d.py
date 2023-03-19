@@ -9,6 +9,7 @@ from copy import *
 import ConstantsSI as SI
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
+from diabatizer import Diabatizer
 
 line_cycler = cyc(
         color=['red', 'green', 'blue', 'magenta', 'cyan', 'y'], 
@@ -109,35 +110,6 @@ def GetPlotProperties(d):
                 title = "",
                 )
     return props
-
-def polyN(coeffs: Dict[tuple, float], x: Tuple[np.ndarray, ...]):
-    """ Calculate multivariate polynomial in Nd dimensions of arbitrary order.
-
-    coeffs
-    Dictionnary whose:
-        - keys are tuples of length Nd with non-negative integer entries.
-            Each tuple is associated to a monomial. The k-th partial order is the k-th
-            entry in the tuple (so the total monomial order is the sum of the entries).
-            e.g.: (2,0,1) represents x**2 * z (in 3D)
-                  (1,1,2,5) represents x * y * z**2 * t**5
-        - values are the coefficients multiplied by the associated monomial.
-
-    x
-    Nd-Tuple of Nd-dimensional meshgrids
-
-    Returns:
-    P
-    Nd-dimensional np.ndarray containing the values of the polynomial over the given x meshgrids.
-
-    """
-    Nd = len(x)
-    P = 0
-    for indices in coeffs:
-        monomial = 1
-        for k in range(Nd):
-            monomial *= x[k]**indices[k]
-        P += coeffs[indices] * monomial
-    return P
 
 
 def loadData(file_name, indices_cols, coords_cols, energies_cols):
