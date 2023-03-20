@@ -3,6 +3,7 @@ from copy import *
 from typing import List, Tuple, Dict
 from collections import UserDict
 import numpy as np
+import scipy
 import pytest
 
 class NdPoly(UserDict):
@@ -120,10 +121,13 @@ class SymPolyMat():
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """ Returns a len(x)*Ns*Ns ndarray of values at x. """
         W = np.zeros((x.shape[0], self._Ns, self._Ns))
-        for i in range(self._Ns):
+        for i in range(self._Ns):   # Compute lower triangular part
             for j in range(i+1):
                 W[:,i,j] = self._polys[i][j](x)
-        return 0.5 * (W + W.transpose((0,2,1)))
+        for i in range(1, self._Ns):   # Copy to upper triangular off-diagonal part
+            for j in range(i, self._Ns):
+                W[:,i,j] = W[:,j,i]
+        return W
 
     def __repr__(self):
         s = ""
@@ -160,7 +164,7 @@ class Diabatizer:
         self._energies = []
         self._states = []
         self._Nchunks = 0
-        self.verbosity = kwargs["verbosity"]
+        self._verbosity = kwargs.get("verbosity", 0)
 
     @property
     def Nd(self):
@@ -177,14 +181,14 @@ class Diabatizer:
         return self._Wguess
 
     @Wguess.setter
-    def set_Wguess(self, guess):
+    def Wguess(self, guess):
         self._Wguess = guess
 
     @property
     def Wout(self):
         return self._Wout
 
-    def addPoints(x: np.ndarray, en: np.ndarray, states: Tuple[int, ...]):
+    def addPoints(self, x: np.ndarray, en: np.ndarray, states: Tuple[int, ...]):
         """ Add N points to the database of energies to be fitted
         
         Parameters
@@ -214,7 +218,7 @@ class Diabatizer:
 
     def _coeffsMapping(self, W: SymPolyMat) -> dict:
         coeffs_map = dict()
-        for i in range(Ns):
+        for i in range(self._Ns):
             for j in range(i+1):
                 for powers, coeff in W[i,j].items():
                     coeffs_map[(i,j,powers)] = coeff 
@@ -228,33 +232,27 @@ class Diabatizer:
         return W
 
     def cost_function(self, c, keys):
-        W_iteration = self._rebuildDiabatic(keys, coeffs)
+        W_iteration = self._rebuildDiabatic(keys, c)
         f = np.array([])
         for n in range(self._Nchunks):
             W = W_iteration(self._x[n])
-            V = adiabatic(W)
+            V, S = adiabatic(W)
             for s in self._states[n]:
-                f = np.hstack((f, V[s]-self._energies[n][s]))
+                f = np.hstack((f, V[:,s]-self._energies[n][:,s]))
         return f 
 
     def optimize(self):
-        """ Find best coefficients for polynomial diabatics and couplings fitting
+        """ Run optimization
+
+        Find best coefficients for polynomial diabatics and couplings fitting
         given adiabatic data.
-        
-        coeffs_sizes:
-        list of desired number of monomials in W11, W22 and W12, in this order
-
-        data:
-        list of tuples, each containing
-        [0] x-data (coordinate),
-        [1] y-data (energies) and
-        [2] which adiabatic state (0: lower, 1: upper)
-
-        guess:
-        initial guess for the coefficients. Must be of size prod(coeff_sizes).
         """
         
-        keys, guess_coeffs = self._coeffsMapping(self._Wguess)
+        # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
+        # used for reconstructing the diabatic ansatzes during the optimization
+        # and at the end
+        keys = tuple(self._coeffsMapping(self._Wguess).keys())
+        guess_coeffs = list(self._coeffsMapping(self._Wguess).values())
 
         lsfit = scipy.optimize.least_squares(
                 self.cost_function,
@@ -262,8 +260,8 @@ class Diabatizer:
                 gtol=1e-10,
                 ftol=1e-10,
                 xtol=1e-10,
-                args=(keys),
-                verbose=self.verbosity)
+                args=(keys,),
+                verbose=self._verbosity)
 
         self._Wout = self._rebuildDiabatic(keys, lsfit.x)
         return lsfit, self._Wout
@@ -301,7 +299,6 @@ class TestPoly:
             Z.flatten()[:,np.newaxis],
             ))
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
-        print(P(data))
 
     def test_PolyGoodSet(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
@@ -337,7 +334,93 @@ class TestSymMat:
 
 class TestDiabatizer:
     def test_LiF(self):
-        pass
+        import ConstantsSI as SI
+        import matplotlib.pyplot as plt
+        from cycler import cycler
+        from itertools import cycle
+        E_Li_p = 1.8478136
+        r0_LiF_gs = 1.563864
+
+        # Load data
+        filename = 'test-data/lif_mr_mscaspt2.csv'
+        data = np.genfromtxt(filename,delimiter=',',skip_header=4)
+        r = data[:,0]
+        Npts = r.size
+        en = data[:,5:]
+        en = (en - en[-1,0])*SI.h2ev
+
+        # Transform coordinate
+        r_x = 6.5   # Intersection point
+        stretch_factor = 1/r_x
+        x = 1 - np.exp(-stretch_factor*(r-r_x))
+
+        # Initial guess
+        W = SymPolyMat(2,1)
+        W[0,0] = NdPoly({(0,): 0.1, (1,): 1, (2,): -1, (3,): 1, (4,): 1, (5,): 1})
+        W[1,1] = NdPoly({(0,): 0.1, (1,): -1, (2,): 1, (3,): 1, (4,): 1, (5,): 1, (6,): 1, (7,): 1})
+        W[1,0] = NdPoly({(0,): 0.0})
+
+        # Diabatize
+        lif = Diabatizer(2,1, verbosity=2)
+        lif.Wguess = W
+        lif.addPoints(x[:,np.newaxis],en,(0,1))
+        lif.optimize()
+        print(lif.Wout)
+        
+        # Make plot using resulting parameters
+        r_test = np.logspace(np.log10(2), np.log10(10), 100)
+        x_test = 1 - np.exp(-stretch_factor*(r_test-r_x))
+        x_test = x_test[:,np.newaxis]
+        yd1_test = lif.Wout[0,0](x_test)
+        yd2_test = lif.Wout[1,1](x_test)
+        yc_test = lif.Wout[1,0](x_test)
+        ya1_test = adiabatic2(yd1_test, yd2_test, yc_test, -1)
+        ya2_test = adiabatic2(yd1_test, yd2_test, yc_test, +1)
+        
+        fig, axs = plt.subplots(2,1)
+        _, nplots = en.shape
+        labels = [
+                r'$E_1$ XMSCASPT2',
+                r'$E_2$ XMSCASPT2',
+                r'$E_1$ fit',
+                r'$E_2$ fit',
+                r'$V_1$',
+                r'$V_2$',
+                r'$V_{12}$',
+                ]
+        mark_cycle = cycler(marker=['+','x'])
+
+        ax = axs[0]
+        for n, mc in zip(range(nplots),cycle(mark_cycle)):
+            ax.plot(x,en[:,n],linewidth=0.5, **mc)
+
+        ax.plot(x_test, ya1_test)
+        ax.plot(x_test, ya2_test)
+        ax.plot(x_test, yd1_test)
+        ax.plot(x_test, yd2_test)
+        ax.plot(x_test, yc_test)
+        ax.set_xlabel(r'$x$')
+        ax.set_ylabel(r'$E$ / hartree')
+        ax.set_title(r'\ce{LiF} avoided crossing : diabatization of XMS-CASPT2 potentials')
+        ax.grid(True)
+
+        ax = axs[1]
+        for n, mc in zip(range(nplots),cycle(mark_cycle)):
+            ax.plot(r,en[:,n],linewidth=0.5, **mc)
+
+        ax.plot(r_test, ya1_test)
+        ax.plot(r_test, ya2_test)
+        ax.plot(r_test, yd1_test)
+        ax.plot(r_test, yd2_test)
+        ax.plot(r_test, yc_test)
+        ax.set_xlabel(r'$r_{\ce{LiF}}$ / \AA')
+        ax.set_ylabel(r'$E$ / hartree')
+        ax.legend(labels)
+        ax.grid(True)
+
+        fig.set_size_inches((12,9))
+        # plt.savefig('lif.pdf')
+        plt.show()
 
     def test_2d2s(self):
         pass
@@ -349,7 +432,7 @@ class TestDiabatizer:
         pass
     
 def main(argv) -> int:
-    TestSymMat().test_SymMat()
+    TestDiabatizer().test_LiF()
     return 0
 
 if __name__ == "__main__":
