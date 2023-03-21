@@ -1,6 +1,7 @@
+from __future__ import annotations
 import sys
 from copy import *
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 from collections import UserDict
 import numpy as np
 import scipy
@@ -21,11 +22,25 @@ class NdPoly(UserDict):
     def __init__(self, data):
         self._Nd = None
         super().__init__(data)
+        self._zeroPower = tuple([0 for _ in range(self._Nd)])
+
+        # Include zero constant term if not given in data
+        if self._zeroPower not in self:
+            self[self._zeroPower] = 0
+
+        # Aliases for keys and values
+        self.powers = self.keys
+        self.coeffs = self.values
 
     @property
     def Nd(self):
         """ Number of variables of the polynomial """
         return self._Nd
+
+    @property
+    def zeroPower(self):
+        """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
+        return self._zeroPower
 
     def __setitem__(self, powers, coeff):
         if self._Nd is None and len(powers) != 0 :
@@ -84,12 +99,38 @@ class NdPoly(UserDict):
 
         return s
 
+    def __add__(self, other: Union[int,float, self.__class__]):
+        if isinstance(other, self.__class__):
+            raise(NotImplementedError)
+        elif isinstance(other, (float, int)):
+            result = copy(self)
+            result[result.zeroPower] += other
+            return result
+        else:
+            raise(TypeError)
+
     @staticmethod
     def zero(Nd):
+        """ Return a Nd-dimensional polynomial with zero constant term only """
         powers = tuple([0 for _ in range(Nd)])
         return NdPoly({powers: 0})
 
+    @staticmethod
+    def one(Nd):
+        """ Return a Nd-dimensional polynomial with unit constant term only """
+        powers = tuple([0 for _ in range(Nd)])
+        return NdPoly({powers: 1})
 
+    @staticmethod
+    def zero_like(P: NdPoly):
+        """ Return a polynomial with all powers in P but with zero coefficients """
+        return NdPoly({ p : 0 for p in list(P.powers()) })
+
+    @staticmethod
+    def one_like(P: NdPoly):
+        """ Return a polynomial with all powers in P, with unit constant term
+        and all the others with zero coefficient """
+        return NdPoly({ p : 0 for p in list(P.powers()) }) + 1
 
 class SymPolyMat():
     """ Real symmetric matrix of multivariate polynomial functions """
@@ -286,10 +327,41 @@ def adiabatic(W):
 class TestPoly:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
 
-    def test_ZeroPoly(self):
+    def test_Zero(self):
         P = NdPoly.zero(3)
         X = np.repeat(self.testdata, 3, 1)
         assert np.all(P(X) == 0)
+
+    def test_One(self):
+        P = NdPoly.one(3)
+        X = np.repeat(self.testdata, 3, 1)
+        assert np.all(P(X) == 1)
+
+    def test_ZeroLike(self):
+        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
+        Q = NdPoly.zero_like(P)
+        assert all([ p == q for p, q in zip(list(P.powers()), list(Q.powers()))])
+        assert all([ c == 0 for c in list(Q.coeffs())])
+
+    def test_OneLike(self):
+        P = NdPoly({(0,0,0): 6.66, (1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
+        Q = NdPoly.one_like(P)
+        assert all([ p == q for p, q in zip(list(P.powers()), list(Q.powers()))])
+        assert Q[(0,0,0)] == 1
+        Q[(0,0,0)] = 0
+        assert all([ c == 0 for c in list(Q.coeffs())])
+
+    def test_InstanceDefaultConstant(self):
+        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
+        assert (0,0,0) in P
+
+    def test_AddConstant(self):
+        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
+        P = P + 1.23
+        assert (0,0,0) in P
+        assert P[P.zeroPower] == 1.23
+        P += 1
+        assert P[P.zeroPower] == 2.23
 
     def test_PolyValues(self):
         X,Y,Z = np.meshgrid(self.testdata, self.testdata, self.testdata)
@@ -308,6 +380,11 @@ class TestPoly:
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
         with pytest.raises(AssertionError):
             P[(1,2)] = 3
+
+    def test_powersCoeffs(self):
+        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
+        assert list(P.powers()) == [(1,0,0), (0,1,0), (0,0,1), (0,0,0)]
+        assert list(P.coeffs()) == [1,3.14,-1,0]
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
@@ -423,7 +500,112 @@ class TestDiabatizer:
         plt.show()
 
     def test_2d2s(self):
-        pass
+        import matplotlib.pyplot as plt
+        x1, x2, y1, y2 = (-1,1,0,1)
+        Nx, Ny = (91,91)
+        x = np.linspace(x1,x2,Nx)
+        y = np.linspace(y1,y2,Ny)
+
+        X, Y = np.mgrid[x1:x2:Nx*1j, y1:y2:Ny*1j]
+        x0, y0 = (0,1)
+        X = X - x0
+        Y = Y - y0
+
+        x_data = np.hstack((
+            X.flatten()[:,np.newaxis],
+            Y.flatten()[:,np.newaxis],
+            ))
+
+        # === Aim of the test ===
+        # 1: Construct an arbitrary diabatic pot matrix W_test
+        # 2: Diagonalize it in order to get the adiabatic PESs
+        # 3: Fit a new W_fit to the adiabatic data and check if
+        #    W_fit == W_test
+
+        # 1: Make target diabatic surfaces
+        W_test = SymPolyMat(2,2)
+        W_test[0,0] = NdPoly({
+            (0,0): 0,
+            (1,0): -1,
+            (0,1): 0,
+            (2,0): 0.3,
+            (1,1): 0,
+            (0,2): 0,
+            (3,0): 0,
+            (2,1): 0,
+            (1,2): 0,
+            (0,3): 0,
+        })
+        W_test[1,1] = NdPoly({
+            (0,0): 0,
+            (1,0): 0.5,
+            (0,1): 0,
+            (2,0): 1.5,
+            (1,1): 0,
+            (0,2): 0,
+        })
+        W_test[0,1] = NdPoly({(0,1): 5E-2})
+
+        W_test_x = W_test(x_data)
+
+        # 2: Make test adiabatic surfaces
+        W11 = W_test_x[:,0,0]
+        W22 = W_test_x[:,1,1]
+        W12 = W_test_x[:,1,0]
+
+        m = 0.5*(W11 + W22)
+        d = 0.5*(W11 - W22)
+        c = W12
+
+        V1 = m - np.sqrt(d**2 + c**2)
+        V2 = m + np.sqrt(d**2 + c**2)
+        
+        # 3: Fit diabatize test adiabatic surfaces
+        W_guess = SymPolyMat(2,2)
+        W_guess[0,0] = NdPoly.zero_like(W_test[0,0])
+        W_guess[1,1] = NdPoly.zero_like(W_test[1,1])
+        W_guess[1,0] = NdPoly.zero_like(W_test[1,0])
+        
+
+        # Finally, show the result
+        W11 = W11.reshape(X.shape)
+        W22 = W22.reshape(X.shape)
+        W12 = W12.reshape(X.shape)
+        V1 = V1.reshape(X.shape)
+        V2 = V2.reshape(X.shape)
+
+        cl = np.linspace(-1,1,21)
+        fig, axs = plt.subplots(1,3)
+        axs[0].contour(X,Y,W11,levels=cl,cmap='Blues_r')
+        axs[0].contour(X,Y,W22,levels=cl,cmap='Reds_r')
+        axs[0].set_xlabel("$x$")
+        axs[0].set_ylabel("$y$")
+        axs[1].contour(X,Y,W12,levels=21,cmap='BrBG')
+        axs[1].set_xlabel("$x$")
+        axs[1].set_ylabel("$y$")
+        axs[2].contour(X,Y,V1,levels=cl,cmap='Greens')
+        axs[2].contour(X,Y,V2,levels=cl,cmap='Oranges_r')
+        axs[2].set_xlabel("$x$")
+        axs[2].set_ylabel("$y$")
+
+        ax2 = plt.figure().add_subplot(projection='3d')
+        ax2.plot_surface(X,Y,W11,alpha=0.5,cmap='Blues_r')
+        ax2.contour(X,Y,W11,alpha=0.5, levels=cl,colors='b')
+        ax2.plot_surface(X,Y,W22,alpha=0.5,cmap='Reds_r')
+        ax2.contour(X,Y,W22,alpha=0.5, levels=cl,colors='r')
+        ax2.set_zlim(ax2.get_zlim()[0], cl[-1])
+        ax2.set_xlabel("$x$")
+        ax2.set_ylabel("$y$")
+
+        ax3 = plt.figure().add_subplot(projection='3d')
+        ax3.plot_surface(X,Y,V1,alpha=0.5,cmap='Greens')
+        ax3.contour(X,Y,V1,alpha=0.5, levels=cl, colors='g')
+        ax3.plot_surface(X,Y,V2,alpha=0.5,cmap='Oranges_r')
+        ax3.contour(X,Y,V2,alpha=0.5, levels=cl, colors='orange')
+        ax3.set_zlim(ax3.get_zlim()[0], cl[-1])
+        ax3.set_xlabel("$x$")
+        ax3.set_ylabel("$y$")
+        plt.show()
 
     def test_2d3s(self):
         pass
@@ -432,7 +614,7 @@ class TestDiabatizer:
         pass
     
 def main(argv) -> int:
-    TestDiabatizer().test_LiF()
+    TestDiabatizer().test_2d2s()
     return 0
 
 if __name__ == "__main__":
