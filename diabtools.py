@@ -24,10 +24,6 @@ class NdPoly(UserDict):
         super().__init__(data)
         self._zeroPower = tuple([0 for _ in range(self._Nd)])
 
-        # Include zero constant term if not given in data
-        if self._zeroPower not in self:
-            self[self._zeroPower] = 0
-
         # Aliases for keys and values
         self.powers = self.keys
         self.coeffs = self.values
@@ -41,6 +37,14 @@ class NdPoly(UserDict):
     def zeroPower(self):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
         return self._zeroPower
+
+    def setZeroConst(self):
+        """ Set constant term to zero.
+
+        This has the effect of adding self._zeroPower to the dictionnary
+        keys if it was not previously there. Equivalent to self += 0
+        """
+        self[self._zeroPower] = 0
 
     def __setitem__(self, powers, coeff):
         if self._Nd is None and len(powers) != 0 :
@@ -100,12 +104,18 @@ class NdPoly(UserDict):
         return s
 
     def __add__(self, other: Union[int,float, self.__class__]):
+        result = copy(self)
         if isinstance(other, self.__class__):
-            raise(NotImplementedError)
-        elif isinstance(other, (float, int)):
-            result = copy(self)
-            result[result.zeroPower] += other
+            for powers, coeff in other.items():
+                if powers in result:
+                    result[powers] += coeff
+                else:
+                    result[powers] = coeff
             return result
+        elif isinstance(other, (float, int)):
+            # Convert number to polynomial, then call __add__ recursively
+            other = NdPoly({self.zeroPower: other})
+            return self + other
         else:
             raise(TypeError)
 
@@ -351,17 +361,20 @@ class TestPoly:
         Q[(0,0,0)] = 0
         assert all([ c == 0 for c in list(Q.coeffs())])
 
-    def test_InstanceDefaultConstant(self):
-        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
-        assert (0,0,0) in P
-
     def test_AddConstant(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
-        P = P + 1.23
-        assert (0,0,0) in P
-        assert P[P.zeroPower] == 1.23
+        Q = P + 1.23
+        assert Q[Q.zeroPower] == 1.23
+        Q += 1
+        assert Q[Q.zeroPower] == 2.23
         P += 1
-        assert P[P.zeroPower] == 2.23
+        assert P[P.zeroPower] == 1
+
+    def test_AddPoly(self):
+        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
+        Q = NdPoly({(0,0,0): 1, (2,1,0): 0.42})
+        R = P + Q
+        assert R == NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1, (0,0,0): 1, (2,1,0): 0.42})
 
     def test_PolyValues(self):
         X,Y,Z = np.meshgrid(self.testdata, self.testdata, self.testdata)
@@ -383,8 +396,8 @@ class TestPoly:
 
     def test_powersCoeffs(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
-        assert list(P.powers()) == [(1,0,0), (0,1,0), (0,0,1), (0,0,0)]
-        assert list(P.coeffs()) == [1,3.14,-1,0]
+        assert list(P.powers()) == [(1,0,0), (0,1,0), (0,0,1)]
+        assert list(P.coeffs()) == [1,3.14,-1]
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
@@ -500,7 +513,15 @@ class TestDiabatizer:
         plt.show()
 
     def test_2d2s(self):
+        """ Two states, two dimensions.
+        1: Construct an arbitrary diabatic potential matrix W_test
+        2: Diagonalize it in order to get the adiabatic PESs
+        3: Fit a new W_fit to the adiabatic data and check if
+           W_fit == W_test
+        """
         import matplotlib.pyplot as plt
+
+        # 0: Prepare coordinates
         x1, x2, y1, y2 = (-1,1,0,1)
         Nx, Ny = (91,91)
         x = np.linspace(x1,x2,Nx)
@@ -516,22 +537,16 @@ class TestDiabatizer:
             Y.flatten()[:,np.newaxis],
             ))
 
-        # === Aim of the test ===
-        # 1: Construct an arbitrary diabatic pot matrix W_test
-        # 2: Diagonalize it in order to get the adiabatic PESs
-        # 3: Fit a new W_fit to the adiabatic data and check if
-        #    W_fit == W_test
-
         # 1: Make target diabatic surfaces
         W_test = SymPolyMat(2,2)
         W_test[0,0] = NdPoly({
             (0,0): 0,
             (1,0): -1,
-            (0,1): 0,
+            (0,1): 0.2,
             (2,0): 0.3,
-            (1,1): 0,
+            (1,1): 0.1,
             (0,2): 0,
-            (3,0): 0,
+            (3,0): 0.1,
             (2,1): 0,
             (1,2): 0,
             (0,3): 0,
@@ -542,23 +557,24 @@ class TestDiabatizer:
             (0,1): 0,
             (2,0): 1.5,
             (1,1): 0,
-            (0,2): 0,
+            (0,2): -0.2,
         })
         W_test[0,1] = NdPoly({(0,1): 5E-2})
 
         W_test_x = W_test(x_data)
 
         # 2: Make test adiabatic surfaces
-        W11 = W_test_x[:,0,0]
-        W22 = W_test_x[:,1,1]
-        W12 = W_test_x[:,1,0]
+        W11_t = W_test_x[:,0,0]
+        W22_t = W_test_x[:,1,1]
+        W21_t = W_test_x[:,1,0]
 
-        m = 0.5*(W11 + W22)
-        d = 0.5*(W11 - W22)
-        c = W12
+        m = 0.5*(W11_t + W22_t)
+        d = 0.5*(W11_t - W22_t)
+        c = W21_t
 
-        V1 = m - np.sqrt(d**2 + c**2)
-        V2 = m + np.sqrt(d**2 + c**2)
+        V_t = np.zeros((x_data.shape[0], 2))
+        V_t[:,0] = m - np.sqrt(d**2 + c**2)
+        V_t[:,1] = m + np.sqrt(d**2 + c**2)
         
         # 3: Fit diabatize test adiabatic surfaces
         W_guess = SymPolyMat(2,2)
@@ -566,40 +582,101 @@ class TestDiabatizer:
         W_guess[1,1] = NdPoly.zero_like(W_test[1,1])
         W_guess[1,0] = NdPoly.zero_like(W_test[1,0])
         
+        test2d2s = Diabatizer(2,2,W_guess)
+        test2d2s.addPoints(x_data, V_t, (0,1))
+        test2d2s.optimize()
+        W = test2d2s.Wout
+        # !!! Finish test
+        # for w, wt in zip(W,W_test):
+        #     for c, ct in zip(w.coeffs(), wt.coeffs()):
+        #         assert abs(c-ct) < 1E-10
+                
+        Wx = W(x_data)
 
         # Finally, show the result
-        W11 = W11.reshape(X.shape)
-        W22 = W22.reshape(X.shape)
-        W12 = W12.reshape(X.shape)
-        V1 = V1.reshape(X.shape)
-        V2 = V2.reshape(X.shape)
+        W11_t = W11_t.reshape(X.shape)
+        W22_t = W22_t.reshape(X.shape)
+        W21_t = W21_t.reshape(X.shape)
+        V1_t = V_t[:,0].reshape(X.shape)
+        V2_t = V_t[:,1].reshape(X.shape)
+
+        W11 = Wx[:,0,0].reshape(X.shape)
+        W22 = Wx[:,1,1].reshape(X.shape)
+        W21 = Wx[:,1,0].reshape(X.shape)
+        V1 = adiabatic2(W11,W22,W21,-1)
+        V2 = adiabatic2(W11,W22,W21,1)
+
+        dW11 = np.abs(W11-W11_t)
+        dW22 = np.abs(W22-W22_t)
+        dW21 = np.abs(W21-W21_t)
+        dV1 = np.abs(V1-V1_t)
+        dV2 = np.abs(V2-V2_t)
+        dW11[dW11==0] = np.nan
+        dW22[dW22==0] = np.nan
+        dW21[dW21==0] = np.nan
+        dV1[dV1==0] = np.nan
+        dV2[dV2==0] = np.nan
+       
+        ldW11 = np.log10(dW11)
+        ldW22 = np.log10(dW22)
+        ldW21 = np.log10(dW21)
+        ldV1  = np.log10(dV1)
+        ldV2  = np.log10(dV2)
 
         cl = np.linspace(-1,1,21)
-        fig, axs = plt.subplots(1,3)
-        axs[0].contour(X,Y,W11,levels=cl,cmap='Blues_r')
-        axs[0].contour(X,Y,W22,levels=cl,cmap='Reds_r')
-        axs[0].set_xlabel("$x$")
-        axs[0].set_ylabel("$y$")
-        axs[1].contour(X,Y,W12,levels=21,cmap='BrBG')
-        axs[1].set_xlabel("$x$")
-        axs[1].set_ylabel("$y$")
-        axs[2].contour(X,Y,V1,levels=cl,cmap='Greens')
-        axs[2].contour(X,Y,V2,levels=cl,cmap='Oranges_r')
-        axs[2].set_xlabel("$x$")
-        axs[2].set_ylabel("$y$")
+        fig, axs = plt.subplots(3,3)
+        axs[0,0].contour(X,Y,W11_t,levels=cl,cmap='Blues_r')
+        axs[0,0].contour(X,Y,W22_t,levels=cl,cmap='Reds_r')
+        axs[0,0].set_ylabel("$y$")
+        axs[0,1].contour(X,Y,W21_t,levels=21,cmap='BrBG')
+        axs[0,2].contour(X,Y,V1_t,levels=cl,cmap='Greens')
+        axs[0,2].contour(X,Y,V2_t,levels=cl,cmap='Oranges_r')
+
+        axs[1,0].contour(X,Y,W11,levels=cl,cmap='Blues_r')
+        axs[1,0].contour(X,Y,W22,levels=cl,cmap='Reds_r')
+        axs[1,0].set_ylabel("$y$")
+        axs[1,1].contour(X,Y,W21,levels=21,cmap='BrBG')
+        axs[1,2].contour(X,Y,V1,levels=cl,cmap='Greens')
+        axs[1,2].contour(X,Y,V2,levels=cl,cmap='Oranges_r')
+
+        cs = axs[2,0].contour(X,Y,ldW11,levels=10,cmap='Blues_r')
+        fig.colorbar(cs, ax=axs[2,0], location='right')
+        cs = axs[2,0].contour(X,Y,ldW22,levels=10,cmap='Reds_r')
+        fig.colorbar(cs, ax=axs[2,0], location='right')
+        axs[2,0].set_xlabel("$x$")
+        axs[2,0].set_ylabel("$y$")
+        cs = axs[2,1].contour(X,Y,ldW21,levels=10,cmap='BrBG')
+        fig.colorbar(cs, ax=axs[2,1], location='right')
+        axs[2,1].set_xlabel("$x$")
+        cs = axs[2,2].contour(X,Y,ldV1,levels=10,cmap='Greens_r')
+        fig.colorbar(cs, ax=axs[2,2], location='right')
+        cs = axs[2,2].contour(X,Y,ldV2,levels=10,cmap='Oranges_r')
+        fig.colorbar(cs, ax=axs[2,2], location='right')
+        axs[2,2].set_xlabel("$x$")
+
+        ax1 = plt.figure().add_subplot(projection='3d')
+        ax1.plot_wireframe(X,Y,W11_t,alpha=0.5,color='darkblue', lw=0.5)
+        ax1.plot_surface(X,Y,W11,alpha=0.5,cmap='Blues_r')
+        ax1.contour(X,Y,W11,alpha=0.5, levels=cl,colors='b')
+        ax1.plot_wireframe(X,Y,W22_t,alpha=0.5,color='darkred', lw=0.5)
+        ax1.plot_surface(X,Y,W22,alpha=0.5,cmap='Reds_r')
+        ax1.contour(X,Y,W22,alpha=0.5, levels=cl,colors='r')
+        ax1.set_zlim(ax1.get_zlim()[0], cl[-1])
+        ax1.set_xlabel("$x$")
+        ax1.set_ylabel("$y$")
 
         ax2 = plt.figure().add_subplot(projection='3d')
-        ax2.plot_surface(X,Y,W11,alpha=0.5,cmap='Blues_r')
-        ax2.contour(X,Y,W11,alpha=0.5, levels=cl,colors='b')
-        ax2.plot_surface(X,Y,W22,alpha=0.5,cmap='Reds_r')
-        ax2.contour(X,Y,W22,alpha=0.5, levels=cl,colors='r')
-        ax2.set_zlim(ax2.get_zlim()[0], cl[-1])
+        ax2.plot_wireframe(X,Y,W21_t,alpha=0.5,color='k', lw=0.5)
+        ax2.plot_surface(X,Y,W21,alpha=0.5,cmap='BrBG')
+        ax2.contour(X,Y,W21,alpha=0.5, levels=21, colors='indigo')
         ax2.set_xlabel("$x$")
         ax2.set_ylabel("$y$")
 
         ax3 = plt.figure().add_subplot(projection='3d')
+        ax3.plot_wireframe(X,Y,V1_t,alpha=0.5,color='darkgreen', lw=0.5)
         ax3.plot_surface(X,Y,V1,alpha=0.5,cmap='Greens')
         ax3.contour(X,Y,V1,alpha=0.5, levels=cl, colors='g')
+        ax3.plot_wireframe(X,Y,V2_t,alpha=0.5,color='darkorange', lw=0.5)
         ax3.plot_surface(X,Y,V2,alpha=0.5,cmap='Oranges_r')
         ax3.contour(X,Y,V2,alpha=0.5, levels=cl, colors='orange')
         ax3.set_zlim(ax3.get_zlim()[0], cl[-1])
@@ -614,7 +691,7 @@ class TestDiabatizer:
         pass
     
 def main(argv) -> int:
-    TestDiabatizer().test_2d2s()
+    TestPoly().test_AddConstant()
     return 0
 
 if __name__ == "__main__":
