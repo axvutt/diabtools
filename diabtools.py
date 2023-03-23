@@ -227,6 +227,21 @@ class SymPolyMat():
             I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
         return I
 
+    @staticmethod
+    def eye_like(other: SymPolyMat):
+        """ Create identity matrix, with polynomial coefficients of other.
+        Each matrix element is a polynomial with all powers as in other,
+        but whose coefficients are all zero except along the diagonal where
+        the constant term .
+        """
+        newmat = SymPolyMat(other.Ns, other.Nd)
+        for i in range(Ns):
+            for j in range(i+1):
+                newmat[i,j] = NdPoly.zero_like(other[i,j])
+                if i == j :
+                    newmat[i,j][newmat[i,j].zeroPower] = 1
+        return newmat
+
 class Diabatizer:
     def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
         self._Nd = Nd
