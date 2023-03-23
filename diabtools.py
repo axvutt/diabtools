@@ -199,10 +199,17 @@ class SymPolyMat():
    
     @staticmethod
     def zero(Ns, Nd):
+        """ Create zero matrix.
+        Each matrix term is a constant monomial with zero coefficient.
+        """
         return SymPolyMat(Ns, Nd)
 
     @staticmethod
     def zero_like(other: SymPolyMat):
+        """ Create copy with zero polynomial coefficients.
+        Each matrix element is a polynomial with all powers as in other,
+        but whose coefficients are all zero.
+        """
         newmat = SymPolyMat(other.Ns, other.Nd)
         for i in range(Ns):
             for j in range(i+1):
@@ -211,6 +218,10 @@ class SymPolyMat():
 
     @staticmethod
     def eye(Ns, Nd):
+        """ Create identity matrix
+        Each matrix term is a constant monomial with coefficient 1 along
+        the diagonal and 0 otherwise.
+        """
         I = SymPolyMat(Ns, Nd)
         for i in range(Ns):
             I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
