@@ -549,6 +549,102 @@ class TestDiabatizer:
             # plt.savefig('lif.pdf')
             plt.show()
 
+    def plot_2d2s_testVSfit(self,X,Y,Wt,Vt,W):
+        import matplotlib.pyplot as plt
+        # Reshape
+        W11_t = Wt[:,0,0].reshape(X.shape)
+        W22_t = Wt[:,1,1].reshape(X.shape)
+        W21_t = Wt[:,1,0].reshape(X.shape)
+        V1_t = Vt[:,0].reshape(X.shape)
+        V2_t = Vt[:,1].reshape(X.shape)
+
+        W11 = W[:,0,0].reshape(X.shape)
+        W22 = W[:,1,1].reshape(X.shape)
+        W21 = W[:,1,0].reshape(X.shape)
+        V1 = adiabatic(W)[0][:,0].reshape(X.shape)
+        V2 = adiabatic(W)[0][:,1].reshape(X.shape)
+
+        # Calculate logarithms of abs(differences)
+        dW11 = np.abs(W11-W11_t)
+        dW22 = np.abs(W22-W22_t)
+        dW21 = np.abs(W21-W21_t)
+        dV1 = np.abs(V1-V1_t)
+        dV2 = np.abs(V2-V2_t)
+        dW11[dW11==0] = np.nan
+        dW22[dW22==0] = np.nan
+        dW21[dW21==0] = np.nan
+        dV1[dV1==0] = np.nan
+        dV2[dV2==0] = np.nan
+       
+        ldW11 = np.log10(dW11)
+        ldW22 = np.log10(dW22)
+        ldW21 = np.log10(dW21)
+        ldV1  = np.log10(dV1)
+        ldV2  = np.log10(dV2)
+
+        # Plot
+        cl = np.linspace(-1,1,21)
+        fig, axs = plt.subplots(3,3)
+        axs[0,0].contour(X,Y,W11_t,levels=cl,cmap='Blues_r')
+        axs[0,0].contour(X,Y,W22_t,levels=cl,cmap='Reds_r')
+        axs[0,0].set_ylabel("$y$")
+        axs[0,1].contour(X,Y,W21_t,levels=21,cmap='BrBG')
+        axs[0,2].contour(X,Y,V1_t,levels=cl,cmap='Greens')
+        axs[0,2].contour(X,Y,V2_t,levels=cl,cmap='Oranges_r')
+
+        axs[1,0].contour(X,Y,W11,levels=cl,cmap='Blues_r')
+        axs[1,0].contour(X,Y,W22,levels=cl,cmap='Reds_r')
+        axs[1,0].set_ylabel("$y$")
+        axs[1,1].contour(X,Y,W21,levels=21,cmap='BrBG')
+        axs[1,2].contour(X,Y,V1,levels=cl,cmap='Greens')
+        axs[1,2].contour(X,Y,V2,levels=cl,cmap='Oranges_r')
+
+        cs = axs[2,0].contour(X,Y,ldW11,levels=10,cmap='Blues_r')
+        fig.colorbar(cs, ax=axs[2,0], location='right')
+        cs = axs[2,0].contour(X,Y,ldW22,levels=10,cmap='Reds_r')
+        fig.colorbar(cs, ax=axs[2,0], location='right')
+        axs[2,0].set_xlabel("$x$")
+        axs[2,0].set_ylabel("$y$")
+        cs = axs[2,1].contour(X,Y,ldW21,levels=10,cmap='BrBG')
+        fig.colorbar(cs, ax=axs[2,1], location='right')
+        axs[2,1].set_xlabel("$x$")
+        cs = axs[2,2].contour(X,Y,ldV1,levels=10,cmap='Greens_r')
+        fig.colorbar(cs, ax=axs[2,2], location='right')
+        cs = axs[2,2].contour(X,Y,ldV2,levels=10,cmap='Oranges_r')
+        fig.colorbar(cs, ax=axs[2,2], location='right')
+        axs[2,2].set_xlabel("$x$")
+
+        ax1 = plt.figure().add_subplot(projection='3d')
+        ax1.plot_wireframe(X,Y,W11_t,alpha=0.5,color='darkblue', lw=0.5)
+        ax1.plot_surface(X,Y,W11,alpha=0.5,cmap='Blues_r')
+        ax1.contour(X,Y,W11,alpha=0.5, levels=cl,colors='b')
+        ax1.plot_wireframe(X,Y,W22_t,alpha=0.5,color='darkred', lw=0.5)
+        ax1.plot_surface(X,Y,W22,alpha=0.5,cmap='Reds_r')
+        ax1.contour(X,Y,W22,alpha=0.5, levels=cl,colors='r')
+        ax1.set_zlim(ax1.get_zlim()[0], cl[-1])
+        ax1.set_xlabel("$x$")
+        ax1.set_ylabel("$y$")
+
+        ax2 = plt.figure().add_subplot(projection='3d')
+        ax2.plot_wireframe(X,Y,W21_t,alpha=0.5,color='k', lw=0.5)
+        ax2.plot_surface(X,Y,W21,alpha=0.5,cmap='BrBG')
+        ax2.contour(X,Y,W21,alpha=0.5, levels=21, colors='indigo')
+        ax2.set_xlabel("$x$")
+        ax2.set_ylabel("$y$")
+
+        ax3 = plt.figure().add_subplot(projection='3d')
+        ax3.plot_wireframe(X,Y,V1_t,alpha=0.5,color='darkgreen', lw=0.5)
+        ax3.plot_surface(X,Y,V1,alpha=0.5,cmap='Greens')
+        ax3.contour(X,Y,V1,alpha=0.5, levels=cl, colors='g')
+        ax3.plot_wireframe(X,Y,V2_t,alpha=0.5,color='darkorange', lw=0.5)
+        ax3.plot_surface(X,Y,V2,alpha=0.5,cmap='Oranges_r')
+        ax3.contour(X,Y,V2,alpha=0.5, levels=cl, colors='orange')
+        ax3.set_zlim(ax3.get_zlim()[0], cl[-1])
+        ax3.set_xlabel("$x$")
+        ax3.set_ylabel("$y$")
+        plt.show()
+
+
     def test_2d2s(self, pytestconfig):
         """ Two states, two dimensions.
         1: Construct an arbitrary diabatic potential matrix W_test
@@ -556,7 +652,6 @@ class TestDiabatizer:
         3: Fit a new W_fit to the adiabatic data and check if
            W_fit == W_test
         """
-        import matplotlib.pyplot as plt
 
         # 0: Prepare coordinates
         x1, x2, y1, y2 = (-1,1,0,1)
@@ -640,97 +735,9 @@ class TestDiabatizer:
                 
         Wx = W(x_data)
 
+        # Show the result if verbose test
         if pytestconfig.getoption("verbose") > 0:
-            # Finally, show the result
-            W11_t = W11_t.reshape(X.shape)
-            W22_t = W22_t.reshape(X.shape)
-            W21_t = W21_t.reshape(X.shape)
-            V1_t = V_t[:,0].reshape(X.shape)
-            V2_t = V_t[:,1].reshape(X.shape)
-
-            W11 = Wx[:,0,0].reshape(X.shape)
-            W22 = Wx[:,1,1].reshape(X.shape)
-            W21 = Wx[:,1,0].reshape(X.shape)
-            V1 = adiabatic2(W11,W22,W21,-1)
-            V2 = adiabatic2(W11,W22,W21,1)
-
-            dW11 = np.abs(W11-W11_t)
-            dW22 = np.abs(W22-W22_t)
-            dW21 = np.abs(W21-W21_t)
-            dV1 = np.abs(V1-V1_t)
-            dV2 = np.abs(V2-V2_t)
-            dW11[dW11==0] = np.nan
-            dW22[dW22==0] = np.nan
-            dW21[dW21==0] = np.nan
-            dV1[dV1==0] = np.nan
-            dV2[dV2==0] = np.nan
-           
-            ldW11 = np.log10(dW11)
-            ldW22 = np.log10(dW22)
-            ldW21 = np.log10(dW21)
-            ldV1  = np.log10(dV1)
-            ldV2  = np.log10(dV2)
-
-            cl = np.linspace(-1,1,21)
-            fig, axs = plt.subplots(3,3)
-            axs[0,0].contour(X,Y,W11_t,levels=cl,cmap='Blues_r')
-            axs[0,0].contour(X,Y,W22_t,levels=cl,cmap='Reds_r')
-            axs[0,0].set_ylabel("$y$")
-            axs[0,1].contour(X,Y,W21_t,levels=21,cmap='BrBG')
-            axs[0,2].contour(X,Y,V1_t,levels=cl,cmap='Greens')
-            axs[0,2].contour(X,Y,V2_t,levels=cl,cmap='Oranges_r')
-
-            axs[1,0].contour(X,Y,W11,levels=cl,cmap='Blues_r')
-            axs[1,0].contour(X,Y,W22,levels=cl,cmap='Reds_r')
-            axs[1,0].set_ylabel("$y$")
-            axs[1,1].contour(X,Y,W21,levels=21,cmap='BrBG')
-            axs[1,2].contour(X,Y,V1,levels=cl,cmap='Greens')
-            axs[1,2].contour(X,Y,V2,levels=cl,cmap='Oranges_r')
-
-            cs = axs[2,0].contour(X,Y,ldW11,levels=10,cmap='Blues_r')
-            fig.colorbar(cs, ax=axs[2,0], location='right')
-            cs = axs[2,0].contour(X,Y,ldW22,levels=10,cmap='Reds_r')
-            fig.colorbar(cs, ax=axs[2,0], location='right')
-            axs[2,0].set_xlabel("$x$")
-            axs[2,0].set_ylabel("$y$")
-            cs = axs[2,1].contour(X,Y,ldW21,levels=10,cmap='BrBG')
-            fig.colorbar(cs, ax=axs[2,1], location='right')
-            axs[2,1].set_xlabel("$x$")
-            cs = axs[2,2].contour(X,Y,ldV1,levels=10,cmap='Greens_r')
-            fig.colorbar(cs, ax=axs[2,2], location='right')
-            cs = axs[2,2].contour(X,Y,ldV2,levels=10,cmap='Oranges_r')
-            fig.colorbar(cs, ax=axs[2,2], location='right')
-            axs[2,2].set_xlabel("$x$")
-
-            ax1 = plt.figure().add_subplot(projection='3d')
-            ax1.plot_wireframe(X,Y,W11_t,alpha=0.5,color='darkblue', lw=0.5)
-            ax1.plot_surface(X,Y,W11,alpha=0.5,cmap='Blues_r')
-            ax1.contour(X,Y,W11,alpha=0.5, levels=cl,colors='b')
-            ax1.plot_wireframe(X,Y,W22_t,alpha=0.5,color='darkred', lw=0.5)
-            ax1.plot_surface(X,Y,W22,alpha=0.5,cmap='Reds_r')
-            ax1.contour(X,Y,W22,alpha=0.5, levels=cl,colors='r')
-            ax1.set_zlim(ax1.get_zlim()[0], cl[-1])
-            ax1.set_xlabel("$x$")
-            ax1.set_ylabel("$y$")
-
-            ax2 = plt.figure().add_subplot(projection='3d')
-            ax2.plot_wireframe(X,Y,W21_t,alpha=0.5,color='k', lw=0.5)
-            ax2.plot_surface(X,Y,W21,alpha=0.5,cmap='BrBG')
-            ax2.contour(X,Y,W21,alpha=0.5, levels=21, colors='indigo')
-            ax2.set_xlabel("$x$")
-            ax2.set_ylabel("$y$")
-
-            ax3 = plt.figure().add_subplot(projection='3d')
-            ax3.plot_wireframe(X,Y,V1_t,alpha=0.5,color='darkgreen', lw=0.5)
-            ax3.plot_surface(X,Y,V1,alpha=0.5,cmap='Greens')
-            ax3.contour(X,Y,V1,alpha=0.5, levels=cl, colors='g')
-            ax3.plot_wireframe(X,Y,V2_t,alpha=0.5,color='darkorange', lw=0.5)
-            ax3.plot_surface(X,Y,V2,alpha=0.5,cmap='Oranges_r')
-            ax3.contour(X,Y,V2,alpha=0.5, levels=cl, colors='orange')
-            ax3.set_zlim(ax3.get_zlim()[0], cl[-1])
-            ax3.set_xlabel("$x$")
-            ax3.set_ylabel("$y$")
-            plt.show()
+            self.plot_2d2s_testVSfit(X,Y,W_test_x,V_t,Wx)
 
     def test_2d3s(self):
         pass
