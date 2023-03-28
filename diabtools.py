@@ -38,6 +38,7 @@ class NdPoly(UserDict):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
         return self._zeroPower
 
+
     def setZeroConst(self):
         """ Set constant term to zero.
 
@@ -120,6 +121,15 @@ class NdPoly(UserDict):
             raise(TypeError)
 
     @staticmethod
+    def empty(Nd):
+        """ Return an empty Nd-dimensional polynomial """
+        # Dirty way: create a contant zero poly and remove the dict item
+        powers = tuple([0 for _ in range(Nd)])
+        P = NdPoly.zero(Nd) 
+        del P[powers]
+        return P
+
+    @staticmethod
     def zero(Nd):
         """ Return a Nd-dimensional polynomial with zero constant term only """
         powers = tuple([0 for _ in range(Nd)])
@@ -147,7 +157,7 @@ class SymPolyMat():
     def __init__(self, Ns, Nd):
         self._Ns = Ns
         self._Nd = Nd
-        self._polys = [ NdPoly.zero(Nd) for i in range(Ns) for j in range(i+1) ]
+        self._polys = [ NdPoly.empty(Nd) for i in range(Ns) for j in range(i+1) ]
 
     @property
     def Ns(self):
@@ -166,7 +176,7 @@ class SymPolyMat():
             i, j = j, i
         return self._polys[i*(i+1)//2 + j]
 
-    def __setitem__(self, pos, value: NdPoly ):
+    def __setitem__(self, pos, value: NdPoly):
         i, j = pos
         if j > i :
             i, j = j, i
@@ -202,7 +212,11 @@ class SymPolyMat():
         """ Create zero matrix.
         Each matrix term is a constant monomial with zero coefficient.
         """
-        return SymPolyMat(Ns, Nd)
+        M = SymPolyMat(Ns,Nd)
+        for i in range(Ns):
+            for j in range(Ns):
+                M[i,j] = NdPoly.zero(Nd)
+        return M
 
     @staticmethod
     def zero_like(other: SymPolyMat):
@@ -210,10 +224,10 @@ class SymPolyMat():
         Each matrix element is a polynomial with all powers as in other,
         but whose coefficients are all zero.
         """
-        newmat = SymPolyMat(other.Ns, other.Nd)
-        for i in range(Ns):
-            for j in range(i+1):
-                newmat[i,j] = NdPoly.zero_like(other[i,j])
+        newmat = deepcopy(other)
+        for wij in newmat:
+            for powers in wij:
+                wij[powers] = 0
         return newmat
 
     @staticmethod
@@ -222,7 +236,7 @@ class SymPolyMat():
         Each matrix term is a constant monomial with coefficient 1 along
         the diagonal and 0 otherwise.
         """
-        I = SymPolyMat(Ns, Nd)
+        I = SymPolyMat.zero(Ns, Nd)
         for i in range(Ns):
             I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
         return I
@@ -233,11 +247,12 @@ class SymPolyMat():
         Each matrix element is a polynomial with all powers as in other,
         but whose coefficients are all zero except along the diagonal where
         the constant term .
+        Warning: If there is no constant term in a diagonal element of other,
+        this will be added (with a coefficient 1).
         """
-        newmat = SymPolyMat(other.Ns, other.Nd)
+        newmat = SymPolyMat.zero_like(other)
         for i in range(Ns):
             for j in range(i+1):
-                newmat[i,j] = NdPoly.zero_like(other[i,j])
                 if i == j :
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
@@ -247,7 +262,7 @@ class Diabatizer:
         self._Nd = Nd
         self._Ns = Ns
         self._Wguess = diab_guess if diab_guess is not None else SymPolyMat.eye(Ns, Nd)
-        self._Wout = SymPolyMat.zero(Ns,Nd)
+        self._Wout = self._Wguess
         self._x = []
         self._energies = []
         self._states = []
@@ -374,14 +389,27 @@ def adiabatic(W):
 class TestPoly:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
 
+    def test_Empty(self):
+        E = NdPoly.empty(3)
+        assert E.Nd == 3
+        assert len(E.powers()) == 0
+        assert len(E.keys()) == 0
+        assert E.zeroPower == (0,0,0)
+
     def test_Zero(self):
         P = NdPoly.zero(3)
         X = np.repeat(self.testdata, 3, 1)
+        assert (0,0,0) in P.powers()
+        assert (1,0,0) not in P.powers()
+        assert P[(0,0,0)] == 0
         assert np.all(P(X) == 0)
 
     def test_One(self):
         P = NdPoly.one(3)
         X = np.repeat(self.testdata, 3, 1)
+        assert (0,0,0) in P.powers()
+        assert (1,0,0) not in P.powers()
+        assert P[(0,0,0)] == 1
         assert np.all(P(X) == 1)
 
     def test_ZeroLike(self):
@@ -425,6 +453,7 @@ class TestPoly:
     def test_PolyGoodSet(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
         P[(1,2,4)] = 3
+        assert P == NdPoly({(1,2,3): 0.1, (3,0,0): 3.14, (1,2,4): 3})
 
     def test_PolyBadSet(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
@@ -438,11 +467,35 @@ class TestPoly:
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
+    
+    def test_Symmetry(self):
+        Ns = 2
+        Nd = 3
+        M = SymPolyMat(Nd,Ns)
+        M[0,0] = NdPoly.zero(Nd)
+        M[1,0] = NdPoly.one(Nd)
+        M[1,1] = NdPoly({(1,2,3): 4})
+        assert M[1,0] == M[0,1]
 
-    def test_SymMat(self):
+    def test_Empty(self):
+        pass
+
+    def test_Zero(self):
+        pass
+
+    def test_ZeroLike(self):
+        pass
+
+    def test_Eye(self):
+        pass
+
+    def test_EyeLike(self):
+        pass
+     
+    def test_Call(self):
         Ns = 5
         Nd = 3
-        M = SymPolyMat(Ns,Nd)
+        M = SymPolyMat.zero(Ns,Nd)
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
         M[0,0] = P
         M[1,1] = NdPoly({(1,0,0): 1, (0,0,1): 2})
@@ -554,13 +607,13 @@ class TestDiabatizer:
         # Reshape
         W11_t = Wt[:,0,0].reshape(X.shape)
         W22_t = Wt[:,1,1].reshape(X.shape)
-        W21_t = Wt[:,1,0].reshape(X.shape)
+        W21_t = np.abs(Wt[:,1,0].reshape(X.shape))
         V1_t = Vt[:,0].reshape(X.shape)
         V2_t = Vt[:,1].reshape(X.shape)
 
         W11 = W[:,0,0].reshape(X.shape)
         W22 = W[:,1,1].reshape(X.shape)
-        W21 = W[:,1,0].reshape(X.shape)
+        W21 = np.abs(W[:,1,0].reshape(X.shape))
         V1 = adiabatic(W)[0][:,0].reshape(X.shape)
         V2 = adiabatic(W)[0][:,1].reshape(X.shape)
 
@@ -644,8 +697,45 @@ class TestDiabatizer:
         ax3.set_ylabel("$y$")
         plt.show()
 
+    def W_JTCI_2d2s(self):
+        dx1 = 1
+        dx2 = -1
+        W = SymPolyMat(2,2)
+        W[0,0] = NdPoly({(2,0): 0.5, (0,2): 0.5,})
+        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 #- W[0,0][(1,0)]*dx1 
+        W[0,0][(1,0)] = -2*W[0,0][(2,0)]*dx1
+        W[1,1] = copy(W[0,0])
+        W[1,1][(0,0)] = W[0,0][(2,0)]*dx2**2 #- W[0,0][(1,0)]*dx2 
+        W[1,1][(1,0)] = -2*W[0,0][(2,0)]*dx2
+        W[0,1] = NdPoly({(0,1): 5E-1})
+        return W
 
-    def test_2d2s(self, pytestconfig):
+    def W_infinityCI_2d2s(self):
+        W = SymPolyMat(2,2)
+        W[0,0] = NdPoly({
+            (0,0): 0,
+            (1,0): -1,
+            (0,1): 0.2,
+            (2,0): 0.3,
+            (1,1): 0.1,
+            (0,2): 0,
+            (3,0): 0.1,
+            (2,1): 0,
+            (1,2): 0,
+            (0,3): 0,
+        })
+        W[1,1] = NdPoly({
+            (0,0): 0,
+            (1,0): 0.5,
+            (0,1): 0,
+            (2,0): 1.5,
+            (1,1): 0,
+            (0,2): -0.2,
+        })
+        W[0,1] = NdPoly({(0,1): 5E-2})
+        return W
+
+    def test_2d2s_infinity(self, pytestconfig):
         """ Two states, two dimensions.
         1: Construct an arbitrary diabatic potential matrix W_test
         2: Diagonalize it in order to get the adiabatic PESs
@@ -670,29 +760,7 @@ class TestDiabatizer:
             ))
 
         # 1: Make target diabatic surfaces
-        W_test = SymPolyMat(2,2)
-        W_test[0,0] = NdPoly({
-            (0,0): 0,
-            (1,0): -1,
-            (0,1): 0.2,
-            (2,0): 0.3,
-            (1,1): 0.1,
-            (0,2): 0,
-            (3,0): 0.1,
-            (2,1): 0,
-            (1,2): 0,
-            (0,3): 0,
-        })
-        W_test[1,1] = NdPoly({
-            (0,0): 0,
-            (1,0): 0.5,
-            (0,1): 0,
-            (2,0): 1.5,
-            (1,1): 0,
-            (0,2): -0.2,
-        })
-        W_test[0,1] = NdPoly({(0,1): 5E-2})
-
+        W_test = self.W_infinityCI_2d2s()
         W_test_x = W_test(x_data)
 
         # 2: Make test adiabatic surfaces
@@ -709,34 +777,19 @@ class TestDiabatizer:
         V_t[:,1] = m + np.sqrt(d**2 + c**2)
         
         # 3: Fit diabatize test adiabatic surfaces
-        W_guess = SymPolyMat(2,2)
-        # W_guess[0,0] = NdPoly({
-        #     (0,0): 0,
-        #     (1,0): -1,
-        # })
-        # W_guess[1,1] = NdPoly({
-        #     (0,0): 0,
-        #     (1,0): 0.5,
-        #     (0,1): 0,
-        #     (2,0): 1.5,
-        # })
-        # W_guess[0,1] = NdPoly({(0,1): 0})
-        W_guess[0,0] = NdPoly.zero_like(W_test[0,0])
-        W_guess[1,1] = NdPoly.zero_like(W_test[1,1])
-        W_guess[1,0] = NdPoly.zero_like(W_test[1,0])
-        
+        W_guess = SymPolyMat.zero_like(W_test)
+
         test2d2s = Diabatizer(2,2,W_guess)
         test2d2s.addPoints(x_data, V_t, (0,1))
         test2d2s.optimize()
         W = test2d2s.Wout
-        # for w, wt in zip(W,W_test):
-        #     for c, ct in zip(w.coeffs(), wt.coeffs()):
-        #         assert abs(c-ct) < 1E-10
-                
-        Wx = W(x_data)
+        for w, wt in zip(W,W_test):
+            for c, ct in zip(w.coeffs(), wt.coeffs()):
+                assert abs(c-ct) < 1E-10
 
         # Show the result if verbose test
         if pytestconfig.getoption("verbose") > 0:
+            Wx = W(x_data)
             self.plot_2d2s_testVSfit(X,Y,W_test_x,V_t,Wx)
 
     def test_2d3s(self):
