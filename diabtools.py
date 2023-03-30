@@ -23,6 +23,7 @@ class NdPoly(UserDict):
         self._Nd = None
         super().__init__(data)
         self._zeroPower = tuple([0 for _ in range(self._Nd)])
+        self._x0 = 0
 
         # Aliases for keys and values
         self.powers = self.keys
@@ -38,6 +39,23 @@ class NdPoly(UserDict):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
         return self._zeroPower
 
+    @property
+    def x0(self):
+        return self._x0
+
+    @x0.setter
+    def set_x0(self, val):
+        """ Set value of origin point without updating coefficients """
+        if len(val) != self._Nd:
+            raise(ValueError(f"{val} should be a point in {self._Nd} dimensions."))
+        self._x0 = val
+
+    # def update_x0(self, val):
+    #     """ Set value of origin point and update coefficients """
+    #     self.set_x0(val)
+    #     for k in range(self._Nd):
+            
+        
 
     def setZeroConst(self):
         """ Set constant term to zero.
@@ -69,9 +87,9 @@ class NdPoly(UserDict):
         for powers, coeff in self.items():
             monomial = 1
             for k in range(len(powers)):
-                monomial *= x[:,k]**powers[k]
+                monomial *= (x[:,k]-self._x0[k])**powers[k]
             P += coeff * monomial
-        return P
+        return P 
     
     def __str__(self):
         """ Explicit representation of the polynomial in terms of its variables """
@@ -105,6 +123,7 @@ class NdPoly(UserDict):
         return s
 
     def __add__(self, other: Union[int,float, self.__class__]):
+        assert self._x0 == other.x0, "Origins of added polynomials do not match."
         result = copy(self)
         if isinstance(other, self.__class__):
             for powers, coeff in other.items():
@@ -946,7 +965,6 @@ class TestDiabatizer:
         W[2,1] = NdPoly({(0,1): 1E-1})
         W[2,0] = NdPoly({(0,1): 2E-1})
         return W
-
 
     def test_2d2s_infinity(self, pytestconfig):
         """ Two states, two dimensions.
