@@ -20,20 +20,25 @@ class NdPoly(UserDict):
 
     """
     def __init__(self, data):
-        self._Nd = None
-        super().__init__(data)
-        self._zeroPower = tuple([0 for _ in range(self._Nd)])
-        self._x0 = 0
-
         # Aliases for keys and values
         self.powers = self.keys
         self.coeffs = self.values
+
+        self._Nd = None
+        self._degree = None
+        self._x0 = 0
+        super().__init__(data)
+        self._zeroPower = tuple([0 for _ in range(self._Nd)])
 
     @property
     def Nd(self):
         """ Number of variables of the polynomial """
         return self._Nd
 
+    @property
+    def degree(self):
+        return self._degree
+    
     @property
     def zeroPower(self):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
@@ -71,6 +76,7 @@ class NdPoly(UserDict):
         else:
             assert len(powers) == self._Nd, f"Inappropriate powers {powers}. Expected {self._Nd} integers."
         super().__setitem__(powers, coeff)
+        self._degree = max([sum(p) for p in self.powers()])
 
     def __call__(self, x: np.ndarray):
         """ Calculate value of the polynomial at x.
