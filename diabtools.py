@@ -797,7 +797,25 @@ class TestDiabatizer:
         cmapV2='plasma'
         cmapV3='Oranges_r'
 
-        cl = np.linspace(-1,1,21)
+        # Collect
+        Wii_t = [W11_t, W22_t, W33_t]
+        Wij_t = [W21_t, W31_t, W32_t]
+        V_t = [V1_t, V2_t, V3_t]
+        pots_t = Wii_t + Wij_t + V_t
+        Wii = [W11, W22, W33]
+        Wij = [W21, W31, W32]
+        V = [V1, V2, V3]
+        pots = Wii + Wij + V
+        ldWii = [ldW11, ldW22, ldW33]
+        ldWij = [ldW21, ldW31, ldW32]
+        ldV = [ldV1, ldV2, ldV3]
+        log_diffs = ldWii + ldWij + ldV
+        cmapsWii = [cmapW11, cmapW22, cmapW33]
+        cmapsWij = [cmapW21, cmapW31, cmapW32]
+        cmapsV = [cmapV1, cmapV2, cmapV3]
+        cmaps = cmapsWii + cmapsWij + cmapsV
+
+        cl = np.linspace(-1,1.5,21)
         fig, axs = plt.subplots(3,3)
         axs[0,0].contour(X,Y,W11_t,levels=cl,cmap=cmapW11)
         axs[0,0].contour(X,Y,W22_t,levels=cl,cmap=cmapW22)
@@ -819,22 +837,11 @@ class TestDiabatizer:
         axs[1,2].contour(X,Y,V2,levels=cl,cmap=cmapV2)
         axs[1,2].contour(X,Y,V3,levels=cl,cmap=cmapV3)
 
-        cs = axs[2,0].contour(X,Y,ldW11,levels=10,cmap=cmapW11)
-        # fig.colorbar(cs, ax=axs[2,0], location='right')
-        cs = axs[2,0].contour(X,Y,ldW22,levels=10,cmap=cmapW22)
-        # fig.colorbar(cs, ax=axs[2,0], location='right')
-        cs = axs[2,0].contour(X,Y,ldW33,levels=10,cmap=cmapW33)
-        # fig.colorbar(cs, ax=axs[2,0], location='right')
-        cs = axs[2,1].contour(X,Y,ldW21,levels=10,cmap=cmapW21)
-        # fig.colorbar(cs, ax=axs[2,1], location='right')
-        cs = axs[2,1].contour(X,Y,ldW31,levels=10,cmap=cmapW31)
-        # fig.colorbar(cs, ax=axs[2,1], location='right')
-        cs = axs[2,1].contour(X,Y,ldW32,levels=10,cmap=cmapW32)
-        # fig.colorbar(cs, ax=axs[2,1], location='right')
-        cs = axs[2,2].contour(X,Y,ldV1,levels=10,cmap=cmapV1)
-        # fig.colorbar(cs, ax=axs[2,2], location='right')
-        cs = axs[2,2].contour(X,Y,ldV2,levels=10,cmap=cmapV2)
-        # fig.colorbar(cs, ax=axs[2,2], location='right')
+        for n, pair in enumerate(zip(log_diffs, cmaps)):
+            ld, cm = pair
+            if not np.all(np.isnan(ld)):
+                cs = axs[2,n//3].contour(X,Y,ld,levels=10,cmap=cm)
+                fig.colorbar(cs, ax=axs[2,n//3], location='right')
 
         axs[0,0].set_ylabel("$y$")
         axs[1,0].set_ylabel("$y$")
@@ -931,12 +938,9 @@ class TestDiabatizer:
         W[0,0] = NdPoly({(2,0): 0.1, (0,2): 0.1,})
         W[1,1] = NdPoly({(0,0): 0.5, (1,0): -0.5})
         W[2,2] = NdPoly({(2,0): 0.1, (0,2): 0.1,})
-        # W[0,0] = NdPoly({(2,0): 0.0, (0,2): 0.0,})
-        # W[1,1] = NdPoly({(2,0): 0.0, (0,2): 0.0,})
-        # W[2,2] = NdPoly({(2,0): 0.0, (0,2): 0.0,})
-        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 #- W[0,0][(1,0)]*dx1 
+        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 
         W[0,0][(1,0)] = -2*W[0,0][(2,0)]*dx1
-        W[2,2][(0,0)] = W[0,0][(2,0)]*dx2**2 + 1#- W[0,0][(1,0)]*dx2 
+        W[2,2][(0,0)] = W[0,0][(2,0)]*dx2**2 + 1
         W[2,2][(1,0)] = -2*W[0,0][(2,0)]*dx2
         W[0,1] = NdPoly({(0,1): 5E-1})
         W[2,1] = NdPoly({(0,1): 1E-1})
@@ -1033,21 +1037,27 @@ class TestDiabatizer:
         V_t = adiabatic(W_test_x)[0]
 
         # 3: Fit diabatize test adiabatic surfaces
-        # W_guess = SymPolyMat.zero_like(W_test)
+        W_guess = SymPolyMat.zero_like(W_test)
+        W_guess[0,0][(0,0)] = 0
+        W_guess[1,1][(1,0)] = -0.5
+        W_guess[2,2][(0,0)] = 1
 
-        # test2d3s = Diabatizer(2,2,W_guess)
-        # test2d3s.addPoints(x_data, V_t, (0,1))
-        # test2d3s.optimize()
-        # W = test2d3s.Wout
-        # for w, wt in zip(W,W_test):
-        #     for c, ct in zip(w.coeffs(), wt.coeffs()):
-        #         assert abs(c-ct) < 1E-10
+        test2d3s = Diabatizer(3,2,W_guess)
+        test2d3s.addPoints(x_data, V_t, (0,1,2))
+        test2d3s.optimize()
+        W = test2d3s.Wout
+
+        for i in range(3):
+            for c, ct in zip(W[i,i].coeffs(), W_test[i,i].coeffs()):
+                assert abs(c-ct) < 1E-10
+            for j in range(i):
+                for c, ct in zip(W[i,j].coeffs(), W_test[i,j].coeffs()):
+                    assert abs(abs(c)-abs(ct)) < 1E-10
 
         # Show the result if verbose test
         if pytestconfig.getoption("verbose") > 0:
-            # Wx = W(x_data)
-            # self.plot_2d3s_testVSfit(X,Y,W_test_x,V_t,Wx)
-            self.plot_2d3s_testVSfit(X,Y,W_test_x,V_t,W_test_x)
+            Wx = W(x_data)
+            self.plot_2d3s_testVSfit(X,Y,W_test_x,V_t,Wx)
 
     def test_3d3s(self):
         pass
