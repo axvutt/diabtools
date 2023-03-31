@@ -89,15 +89,13 @@ class NdPoly(UserDict):
         For each power 'p' in the original polynomial, the result
         polynomial contains the powers 'p - order'.
         If for any 0 <= i < Nd, p[i]-order[i] < 0, the key power is
-        removed. If sum(order) > degree, the returned polynomial is
-        constant with zero coefficient (NdPoly.zero(Nd)).
+        removed. If no monomial survives to differentiation,
+        the returned polynomial is constant with zero coefficient
+        (NdPoly.zero(Nd)).
         """
         if len(orders) != self._Nd:
             raise(ValueError("Invalid differentiation order of length "\
                     + "{len(order)}, expecting {self._Nd}"))
-
-        if sum(orders) > self._degree:
-            return NdPoly.zero(self._Nd)
 
         D = NdPoly.empty(self._Nd)
         for powers, coeff in self.items():  # Differentiate each monomial
@@ -115,7 +113,10 @@ class NdPoly(UserDict):
                     new_coeff *= k
             D[tuple(new_powers)] = new_coeff
 
-        return D
+        if len(D.powers()) == 0:
+            return NdPoly.zero(self._Nd)
+        else:
+            return D
 
     def __setitem__(self, powers, coeff):
         if self._Nd is None and len(powers) != 0 :
@@ -542,7 +543,16 @@ class TestPoly:
 
     def test_Derivative(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
-        P.derivative((1,0,1))
+        Q = P.derivative((1,0,1))
+        exp_powers = [(0,2,2)]
+        exp_coeffs = [0.3]
+        assert all(p == pe for p,pe in zip(list(Q.powers()), exp_powers))
+        assert all(abs(c-e) < 1E-10 for c,e in zip(list(Q.coeffs()), exp_coeffs))
+
+    def test_DerivativeNull(self):
+        P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
+        Q = P.derivative((1,0,4))
+        assert Q == NdPoly.zero(3)
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
