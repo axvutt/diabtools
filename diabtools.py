@@ -3,6 +3,7 @@ import sys
 from copy import *
 from typing import List, Tuple, Dict, Union
 from collections import UserDict
+import math
 import numpy as np
 import scipy
 import pytest
@@ -32,7 +33,7 @@ class NdPoly(UserDict):
         self._degree = None
         super().__init__(data)  # Sets Nd and degree
         self._zeroPower = tuple([0 for _ in range(self._Nd)])
-        self._x0 = tuple([0 for _ in range(self._Nd)])
+        self._x0 = np.array([0 for _ in range(self._Nd)])
 
     @property
     def Nd(self):
@@ -53,19 +54,60 @@ class NdPoly(UserDict):
         return self._x0
 
     @x0.setter
-    def set_x0(self, val):
+    def x0(self, x0):
         """ Set value of origin point without updating coefficients """
         if self._Nd is None:
             raise(RuntimeError("Cannot set origin in a polynomial of unknown dimensionality."))
-        if len(val) != self._Nd:
-            raise(ValueError(f"{val} should be a point in {self._Nd} dimensions."))
-        self._x0 = val
+        x0 = np.array(x0).flatten()
+        if x0.size != self._Nd:
+            raise(ValueError(f"{x0} should be a point in {self._Nd} dimensions."))
+        self._x0 = x0
 
-    def update_x0(self, val):
-        # """ Set value of origin point and update coefficients """
-        pass
-        # self.set_x0(val)
-        # for k in range(self._Nd):
+    def max_partial_degrees(self):
+        return [max([powers[i] for powers in self.powers()]) \
+                for i in range(self._Nd)]
+
+    def translated(self, x0):
+        """ Return translated polynomial 
+
+        Transform the polynomial P(x) into Q(x) = P(x-x0).
+        This has the effect of adding more monomials to the NdPoly object.
+        More specifically, if (n_0,...,n_{Nd-1}) are the maximum partial degrees
+        in the undisplaced polynomial, the displaced one will contain all
+        monomials with partial degrees n'_i <= n_i for i in {0, Nd-1}.
+
+        x0
+        list, tuple or 1d np.ndarray of length Nd of the coordinates of the
+        shift vector
+
+        return
+        the shifted polynomial
+        """
+        x0 = np.array(x0).flatten()   # Cast list or tuple to np.ndarray
+        max_degs = self.max_partial_degrees()
+        n_monomials = math.prod([n+1 for n in max_degs])
+
+        P_translated = NdPoly.empty(self._Nd)
+        for i in range(n_monomials):
+            # Convert from flat index to multi-index (= order of diff)
+            order = []
+            i_left = i
+            for j in range(self._Nd):
+                if max_degs[j] == 0:
+                    order.append(0)
+                    continue
+                i_rem = i_left % (max_degs[j]+1)    
+                i_left -= i_left // (max_degs[j]+1)
+                order.append(i_rem) 
+            order = tuple(order)
+
+            # Coefficient form multi-dimensional Taylor shift
+            coeff = self.derivative(order)(-x0) \
+                    / math.prod([math.factorial(order[d]) for d in range(self._Nd)])
+            
+            # Set monomial
+            P_translated[order] = coeff
+        return P_translated
 
     def setZeroConst(self):
         """ Set constant term to zero.
@@ -138,11 +180,14 @@ class NdPoly(UserDict):
         np.ndarray containing the N values of the polynomial over the given x meshgrids.
         """
         P = 0
+        x = np.atleast_2d(x)
         for powers, coeff in self.items():
             monomial = 1
             for k in range(len(powers)):
                 monomial *= (x[:,k]-self._x0[k])**powers[k]
             P += coeff * monomial
+        if P.size == 1:
+            P = P.item()
         return P 
     
     def __str__(self):
@@ -179,7 +224,7 @@ class NdPoly(UserDict):
     def __add__(self, other: Union[int,float, self.__class__]):
         result = copy(self)
         if isinstance(other, self.__class__):
-            assert self._x0 == other.x0, "Origins of added polynomials do not match."
+            assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
             for powers, coeff in other.items():
                 if powers in result:
                     result[powers] += coeff
@@ -470,7 +515,7 @@ class TestPoly:
         assert len(E.powers()) == 0
         assert len(E.keys()) == 0
         assert E.zeroPower == (0,0,0)
-        assert E.x0 == (0,0,0)
+        assert np.all(E.x0 == np.array([0,0,0]))
 
     def test_Zero(self):
         P = NdPoly.zero(3)
@@ -553,6 +598,16 @@ class TestPoly:
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
         Q = P.derivative((1,0,4))
         assert Q == NdPoly.zero(3)
+
+    def test_translated(self):
+        P = NdPoly({(2,0): 1, (1,1): 2, (0,2): 0.5})
+        Q = P.translated([1.,1.])
+        assert math.isclose(Q([0,0]), 3.5)
+        # assert Q == NdPoly({
+        #     (0,0): 3.5, (1,0): -4., (2,0): 1.0,
+        #     (0,1): -3., (1,1): 2.0,
+        #     (0,2): 0.5,
+        #     })
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
@@ -1153,6 +1208,7 @@ class TestDiabatizer:
         pass
     
 def main(argv) -> int:
+    TestPoly().test_update_x0()
     return 0
 
 if __name__ == "__main__":
