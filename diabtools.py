@@ -75,6 +75,48 @@ class NdPoly(UserDict):
         """
         self[self._zeroPower] = 0
 
+    def derivative(self, orders: tuple):
+        """ Partial derivative of the polynomial
+        
+        order
+        tuple whose items are integers indicating the order
+        of differentiation in the corresponding coordinate.
+        e.g. for Nd = 3, order = (1,0,2) yields
+        d^3 P / dx dz^2
+
+        returns
+        NdPoly corresponding to the partial derivative.
+        For each power 'p' in the original polynomial, the result
+        polynomial contains the powers 'p - order'.
+        If for any 0 <= i < Nd, p[i]-order[i] < 0, the key power is
+        removed. If sum(order) > degree, the returned polynomial is
+        constant with zero coefficient (NdPoly.zero(Nd)).
+        """
+        if len(orders) != self._Nd:
+            raise(ValueError("Invalid differentiation order of length "\
+                    + "{len(order)}, expecting {self._Nd}"))
+
+        if sum(orders) > self._degree:
+            return NdPoly.zero(self._Nd)
+
+        D = NdPoly.empty(self._Nd)
+        for powers, coeff in self.items():  # Differentiate each monomial
+            new_powers = list(powers)
+            for dof in range(self._Nd):
+                new_powers[dof] -= orders[dof]
+            # If monomial is annihilated, go to next
+            if any([p < 0 for p in new_powers]): 
+                continue
+
+            # The monomial survived, compute corresponding coefficient
+            new_coeff = coeff
+            for dof in range(self._Nd):
+                for k in range(new_powers[dof]+1, new_powers[dof] + orders[dof] + 1):
+                    new_coeff *= k
+            D[tuple(new_powers)] = new_coeff
+
+        return D
+
     def __setitem__(self, powers, coeff):
         if self._Nd is None and len(powers) != 0 :
             self._Nd = len(powers)
@@ -497,6 +539,10 @@ class TestPoly:
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
         assert list(P.powers()) == [(1,0,0), (0,1,0), (0,0,1)]
         assert list(P.coeffs()) == [1,3.14,-1]
+
+    def test_Derivative(self):
+        P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
+        P.derivative((1,0,1))
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
