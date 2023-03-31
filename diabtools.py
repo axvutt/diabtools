@@ -20,15 +20,19 @@ class NdPoly(UserDict):
 
     """
     def __init__(self, data):
+        if len(data) == 0:
+            raise(ValueError("Cannot make empty polynomial with unknown " \
+                    + "dimensionality. Use NdPoly.empty() instead."))
+
         # Aliases for keys and values
         self.powers = self.keys
         self.coeffs = self.values
 
         self._Nd = None
         self._degree = None
-        self._x0 = 0
-        super().__init__(data)
+        super().__init__(data)  # Sets Nd and degree
         self._zeroPower = tuple([0 for _ in range(self._Nd)])
+        self._x0 = tuple([0 for _ in range(self._Nd)])
 
     @property
     def Nd(self):
@@ -51,16 +55,17 @@ class NdPoly(UserDict):
     @x0.setter
     def set_x0(self, val):
         """ Set value of origin point without updating coefficients """
+        if self._Nd is None:
+            raise(RuntimeError("Cannot set origin in a polynomial of unknown dimensionality."))
         if len(val) != self._Nd:
             raise(ValueError(f"{val} should be a point in {self._Nd} dimensions."))
         self._x0 = val
 
-    # def update_x0(self, val):
-    #     """ Set value of origin point and update coefficients """
-    #     self.set_x0(val)
-    #     for k in range(self._Nd):
-            
-        
+    def update_x0(self, val):
+        # """ Set value of origin point and update coefficients """
+        pass
+        # self.set_x0(val)
+        # for k in range(self._Nd):
 
     def setZeroConst(self):
         """ Set constant term to zero.
@@ -129,9 +134,9 @@ class NdPoly(UserDict):
         return s
 
     def __add__(self, other: Union[int,float, self.__class__]):
-        assert self._x0 == other.x0, "Origins of added polynomials do not match."
         result = copy(self)
         if isinstance(other, self.__class__):
+            assert self._x0 == other.x0, "Origins of added polynomials do not match."
             for powers, coeff in other.items():
                 if powers in result:
                     result[powers] += coeff
@@ -412,27 +417,32 @@ def adiabatic(W):
 class TestPoly:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
 
+    def test_InitEmptyError(self):
+        with pytest.raises(ValueError):
+            E = NdPoly({})
+
     def test_Empty(self):
         E = NdPoly.empty(3)
         assert E.Nd == 3
         assert len(E.powers()) == 0
         assert len(E.keys()) == 0
         assert E.zeroPower == (0,0,0)
+        assert E.x0 == (0,0,0)
 
     def test_Zero(self):
         P = NdPoly.zero(3)
         X = np.repeat(self.testdata, 3, 1)
-        assert (0,0,0) in P.powers()
-        assert (1,0,0) not in P.powers()
-        assert P[(0,0,0)] == 0
+        assert P.zeroPower == (0,0,0)
+        assert list(P.powers()) == [P.zeroPower]
+        assert P[P.zeroPower] == 0
         assert np.all(P(X) == 0)
 
     def test_One(self):
         P = NdPoly.one(3)
         X = np.repeat(self.testdata, 3, 1)
-        assert (0,0,0) in P.powers()
-        assert (1,0,0) not in P.powers()
-        assert P[(0,0,0)] == 1
+        assert P.zeroPower == (0,0,0)
+        assert list(P.powers()) == [P.zeroPower]
+        assert P[P.zeroPower] == 1
         assert np.all(P(X) == 1)
 
     def test_ZeroLike(self):
