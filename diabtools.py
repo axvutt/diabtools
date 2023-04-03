@@ -194,18 +194,28 @@ class NdPoly(UserDict):
         """ Explicit representation of the polynomial in terms of its variables """
 
         if self._Nd is None:
-            return ""
+            return f"<Empty {self.__class__} with no dimension at {hex(id(self))}.>"
+
+        if self == {}:
+            return f"<Empty {self.__class__} of dimension {self._Nd} at {hex(id(self))}.>"
 
         s = ""
         first = True
+
         for powers, coeff in self.items():
             if coeff == 0:  # Ignore terms with 0 coeff
                 continue
+
+            cstr = ""
+            if coeff != 1:  # Write only non "1" coefficients
+                cstr = f"{coeff} "
+
             if first :      # No + sign for the first term
-                s += f"{coeff} "
+                s += cstr
                 first = False
             else:
-                s += f" + {coeff} "
+                s += f" + " + cstr
+
             for d, p in enumerate(powers):
                 if p == 0 : # Do not show variables to the 0th power
                     continue
@@ -214,11 +224,28 @@ class NdPoly(UserDict):
                 else :
                     s += f"x{d}^{p}"
         
+        # If zero polynomial, show 0 instead of empty string
+        if len(s) == 0:
+            s = "0"
+
+        # Show coordinate shift n polynomial if non zero
+        for d in range(self._Nd):
+            if self._x0[d] != 0:
+                s = s.replace(f"x{d}", f"(x{d}-X{d})")
+
+        # Show value of origin shift if not zero
+        if any(self._x0 != 0):
+            s += f"   |   [X0"
+            for d in range(1,self._Nd):
+                s += f" X{d}"
+            s += f"] = {self._x0}"
+
         if self._Nd < 8:    # Use x,y,z,... instead of x1, x2, x3 if Nd < 8
             xyz = "xyztuvw"
             for d in range(self._Nd):
                 s = s.replace(f"x{d}", xyz[d])
-
+                s = s.replace(f"X{d}", xyz.upper()[d])
+        
         return s
 
     def __add__(self, other: Union[int,float, self.__class__]):
