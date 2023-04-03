@@ -55,7 +55,8 @@ class NdPoly(UserDict):
 
     @x0.setter
     def x0(self, x0):
-        """ Set value of origin point without updating coefficients """
+        """ Transform the polynomial P(x) into Q(x) = P(x-x0)
+        by setting the origin point without changing coefficients. """
         if self._Nd is None:
             raise(RuntimeError("Cannot set origin in a polynomial of unknown dimensionality."))
         x0 = np.array(x0).flatten()
@@ -67,11 +68,10 @@ class NdPoly(UserDict):
         return [max([powers[i] for powers in self.powers()]) \
                 for i in range(self._Nd)]
 
-    def translated(self, x0):
-        """ Return translated polynomial 
+    def expanded(self):
+        """ Return polynomial with (x-x0)^n terms expanded
 
-        Transform the polynomial P(x) into Q(x) = P(x-x0).
-        This has the effect of adding more monomials to the NdPoly object.
+        This has the effect of adding more monomials to the new NdPoly object.
         More specifically, if (n_0,...,n_{Nd-1}) are the maximum partial degrees
         in the undisplaced polynomial, the displaced one will contain all
         monomials with partial degrees n'_i <= n_i for i in {0, Nd-1}.
@@ -83,11 +83,13 @@ class NdPoly(UserDict):
         return
         the shifted polynomial
         """
-        x0 = np.array(x0).flatten()   # Cast list or tuple to np.ndarray
+        if all(self._x0 == 0):
+            return self
+
         max_degs = self.max_partial_degrees()
         n_monomials = math.prod([n+1 for n in max_degs])
 
-        P_translated = NdPoly.empty(self._Nd)
+        P_expanded = NdPoly.empty(self._Nd)
         for i in range(n_monomials):
             # Convert from flat index to multi-index (= order of diff)
             order = []
@@ -102,12 +104,12 @@ class NdPoly(UserDict):
             order = tuple(order)
 
             # Coefficient form multi-dimensional Taylor shift
-            coeff = self.derivative(order)(-x0) \
+            coeff = self.derivative(order)(-self._x0) \
                     / math.prod([math.factorial(order[d]) for d in range(self._Nd)])
             
             # Set monomial
-            P_translated[order] = coeff
-        return P_translated
+            P_expanded[order] = coeff
+        return P_expanded
 
     def setZeroConst(self):
         """ Set constant term to zero.
