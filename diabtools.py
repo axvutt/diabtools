@@ -190,6 +190,11 @@ class NdPoly(UserDict):
             P = P.item()
         return P 
     
+    def __repr__(self):
+        s = super().__repr__()
+        s += f", ORIGIN: {self._x0}"
+        return s
+
     def __str__(self):
         """ Explicit representation of the polynomial in terms of its variables """
 
@@ -200,16 +205,18 @@ class NdPoly(UserDict):
             return f"<Empty {self.__class__} of dimension {self._Nd} at {hex(id(self))}.>"
 
         s = ""
-        first = True
 
+        first = True
         for powers, coeff in self.items():
             if coeff == 0:  # Ignore terms with 0 coeff
                 continue
 
             cstr = ""
-            if coeff != 1:  # Write only non "1" coefficients
+            # Write only non "1" coefficients except constant term
+            if coeff != 1 or powers == self.zeroPower :  
                 cstr = f"{coeff} "
 
+            # + sign and coefficients
             if first :      # No + sign for the first term
                 s += cstr
                 first = False
@@ -223,9 +230,9 @@ class NdPoly(UserDict):
                     s += f"x{d}"
                 else :
                     s += f"x{d}^{p}"
-        
+
         # If zero polynomial, show 0 instead of empty string
-        if len(s) == 0:
+        if len(s) == 0 :
             s = "0"
 
         # Show coordinate shift n polynomial if non zero
@@ -1235,7 +1242,6 @@ class TestDiabatizer:
         pass
     
 def main(argv) -> int:
-    TestPoly().test_update_x0()
     return 0
 
 if __name__ == "__main__":
