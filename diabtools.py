@@ -904,9 +904,9 @@ class TestDiabatizer:
         axs[0,2].plot(x,V1_t, color='lime')    
         axs[0,2].plot(x,V2_t, color='orange')  
 
-        axs[0,0].set_ylabel("$W_{ii}$ (orig)")
-        axs[0,1].set_ylabel("$W_{12}$ (orig)")
-        axs[0,2].set_ylabel("$V_{i}$ (orig)")
+        axs[0,0].set_ylabel(r"$W_{ii}$ (orig)")
+        axs[0,1].set_ylabel(r"$W_{12}$ (orig)")
+        axs[0,2].set_ylabel(r"$V_{i}$ (orig)")
 
         axs[1,0].plot(x,W11,color='b')      
         axs[1,0].plot(x,W22,color='r')      
@@ -914,21 +914,21 @@ class TestDiabatizer:
         axs[1,2].plot(x,V1, color='lime')    
         axs[1,2].plot(x,V2, color='orange')  
 
-        axs[1,0].set_ylabel("$W_{ii}$ (fit)")
-        axs[1,1].set_ylabel("$W_{12}$ (fit)")
-        axs[1,2].set_ylabel("$V_{i}$ (fit)")
+        axs[1,0].set_ylabel(r"$W_{ii}$ (fit)")
+        axs[1,1].set_ylabel(r"$W_{12}$ (fit)")
+        axs[1,2].set_ylabel(r"$V_{i}$ (fit)")
 
         axs[2,0].plot(x,ldW11,color='b')
         axs[2,0].plot(x,ldW22,color='r')
         axs[2,1].plot(x,ldW21,color='magenta')
         axs[2,2].plot(x,ldV1, color='lime')
         axs[2,2].plot(x,ldV2, color='orange')
-        axs[2,0].set_ylabel("$\log\Delta W_{ii}$")
-        axs[2,1].set_ylabel("$\log\Delta W_{12}$")
-        axs[2,2].set_ylabel("$\log\Delta V_{i}$")
-        axs[2,0].set_xlabel("$x$")
-        axs[2,1].set_xlabel("$x$")
-        axs[2,2].set_xlabel("$x$")
+        axs[2,0].set_ylabel(r"$\log\Delta W_{ii}$")
+        axs[2,1].set_ylabel(r"$\log\Delta W_{12}$")
+        axs[2,2].set_ylabel(r"$\log\Delta V_{i}$")
+        axs[2,0].set_xlabel(r"$x$")
+        axs[2,1].set_xlabel(r"$x$")
+        axs[2,2].set_xlabel(r"$x$")
 
         plt.show()
 
