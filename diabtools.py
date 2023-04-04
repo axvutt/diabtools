@@ -442,16 +442,23 @@ class SymPolyMat():
         return newmat
 
 class Diabatizer:
-    def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
+    def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None, **kwargs):
         self._Nd = Nd
         self._Ns = Ns
-        self._Wguess = diab_guess if diab_guess is not None else SymPolyMat.eye(Ns, Nd)
+        self._Nm = Nm
+        if diab_guess is not None:
+            self._Wguess = diab_guess
+        else :
+            self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
         self._Wout = self._Wguess
-        self._x = []
-        self._energies = []
-        self._states = []
-        self._Nchunks = 0
+        self._x = dict()
+        self._energies = dict()
+        self._domainMap = {i_matrix : {} for i_matrix in range(Nm)}
+        self._domainIDs = set()
+        self._Ndomains = 0
+        self._lastDomainID = 0
         self._verbosity = kwargs.get("verbosity", 0)
+        self._autoFit = True
 
     @property
     def Nd(self):
@@ -475,7 +482,7 @@ class Diabatizer:
     def Wout(self):
         return self._Wout
 
-    def addPoints(self, x: np.ndarray, en: np.ndarray, states: Tuple[int, ...]):
+    def addDomain(self, x: np.ndarray, en: np.ndarray):
         """ Add N points to the database of energies to be fitted
         
         Parameters
@@ -485,23 +492,57 @@ class Diabatizer:
         en
         np.ndarray of Ns*N energy values at the corresponding coordinates
 
-        states
-        tuple of integers corresponding to states which should be considered
         Return
         n_chunk
         integer id of the data chunk added to the database
         """
-        self._x.append(x)
-        self._energies.append(en)
-        self._states.append(states)
-        self._Nchunks += 1
-        return self._Nchunks
+        x = np.atleast_2d(x)
+        en = np.atleast_2d(en)
+        if self._Nd == 1 and x.shape[0] == 1:
+            x = x.T
+        if self._Ns == 1 and en.shape[0] == 1:
+            en = en.T
+        assert x.shape[1] == self._Nd, "Wrong coord. array dimensions, " \
+                + "{x.shape[1]} vars, expected {self._Nd}."
+        assert en.shape[1] == self._Ns, "Wrong energy array dimensions " \
+                + f"{en.shape[1]} states, expected {self._Ns}."
+        assert x.shape[0] == en.shape[0], "Coordinates vs energies "\
+                + "dimensions mismatch."
+        id_domain = self._lastDomainID
+        self._domainIDs.add(id_domain)
+        self._x[id_domain] = x
+        self._energies[id_domain] = en
+        self._Ndomains += 1
+        self._lastDomainID += 1
+        return id_domain
 
-    def removeChunk(n_chunk):
-        assert n_chunk < self._datachunks, "removeChunk(), chunk id too high."
-        self._x[n_chunk] = []
-        self._energies[n_chunk] = []
-        self._states[n_chunk] = None
+    def removeDomain(id_domain):
+        self._domains.remove(id_domain)
+        self._x.pop(id_domain)
+        self._energies.pop(id_domain)
+        for i_matrix in self._Nm:
+            self._fitDomains[i_matrix].pop(id_domain)
+        self._Ndomains -= 1
+
+    def setFitDomain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
+        """ Specify the domain and states that a diabatic potential matrix
+        should fit.
+        """
+        if states is None:
+            states = tuple([s for s in range(self._Ns)])
+
+        assert n_matrix < self._Nm, "Matrix index should be less than " \
+            + f"{self._Nm}, got {n_matrix}."
+        assert all([0 <= s < self._Ns for s in states]), "One of specified " \
+            + f"states {states} is out of range, " \
+            + f"should be 0 <= s < {self._Ns}."
+
+        self._domainMap[n_matrix][id_domain] = states
+        self._autoFit = False
+
+    def setFitAllDomains(self, n_matrix: int):
+        for idd in self._domainIDs:
+            self.setFitDomain(n_matrix, idd)
 
     def _coeffsMapping(self, W: SymPolyMat) -> dict:
         coeffs_map = dict()
@@ -518,14 +559,14 @@ class Diabatizer:
             W[i,j][powers] = coeffs[n]
         return W
 
-    def cost_function(self, c, keys):
+    def cost_function(self, c, keys, i_matrix):
         W_iteration = self._rebuildDiabatic(keys, c)
         f = np.array([])
-        for n in range(self._Nchunks):
-            W = W_iteration(self._x[n])
+        for id_domain, states in self._domainMap[i_matrix].items():
+            W = W_iteration(self._x[id_domain])
             V, S = adiabatic(W)
-            for s in self._states[n]:
-                f = np.hstack((f, V[:,s]-self._energies[n][:,s]))
+            for s in states:
+                f = np.hstack((f, V[:,s]-self._energies[id_domain][:,s]))
         return f 
 
     def optimize(self):
@@ -534,25 +575,49 @@ class Diabatizer:
         Find best coefficients for polynomial diabatics and couplings fitting
         given adiabatic data.
         """
-        
-        # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
-        # used for reconstructing the diabatic ansatzes during the optimization
-        # and at the end
-        keys = tuple(self._coeffsMapping(self._Wguess).keys())
-        guess_coeffs = list(self._coeffsMapping(self._Wguess).values())
+        # By default, if no specific domain setting is given, use all the data
+        # in the database for the fit
+        # NB: autoFit is false if Nm > 1
+        if self._autoFit:
+            self.setFitAllDomains(0)
 
-        lsfit = scipy.optimize.least_squares(
-                self.cost_function,
-                np.array(guess_coeffs),
-                gtol=1e-10,
-                ftol=1e-10,
-                xtol=1e-10,
-                args=(keys,),
-                verbose=self._verbosity)
+        # Run a separate optimization for each diabatic matrix
+        for i_matrix in range(self._Nm):
+            # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
+            # used for reconstructing the diabatic ansatzes during the optimization
+            # and at the end
+            keys = tuple(self._coeffsMapping(self._Wguess[i_matrix]).keys())
+            guess_coeffs = list(self._coeffsMapping(self._Wguess[i_matrix]).values())
 
-        self._Wout = self._rebuildDiabatic(keys, lsfit.x)
+            lsfit = scipy.optimize.least_squares(
+                    self.cost_function,
+                    np.array(guess_coeffs),
+                    gtol=1e-10,
+                    ftol=1e-10,
+                    xtol=1e-10,
+                    args=(keys, i_matrix),
+                    verbose=self._verbosity)
+
+            self._Wout[i_matrix] = self._rebuildDiabatic(keys, lsfit.x)
+
         return lsfit, self._Wout
 
+
+class SingleDiabatizer(Diabatizer):
+    def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
+        super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
+
+    @property
+    def Wguess(self):
+        return self._Wguess[0]
+
+    @Wguess.setter
+    def Wguess(self, guess):
+        self._Wguess[0] = guess
+
+    @property
+    def Wout(self):
+        return self._Wout[0]
 
 ### NON-CLASS FUNCTIONS ###
 
@@ -801,9 +866,9 @@ class TestDiabatizer:
         W[1,0] = NdPoly({(0,): 0.0})
 
         # Diabatize
-        lif = Diabatizer(2,1, verbosity=2)
+        lif = SingleDiabatizer(2,1, verbosity=2)
         lif.Wguess = W
-        lif.addPoints(x,en,(0,1))
+        lif.addDomain(x,en)
         lif.optimize()
         
         if pytestconfig.getoption("verbose") > 0:
@@ -1285,8 +1350,8 @@ class TestDiabatizer:
         # 3: Fit diabatize test adiabatic surfaces
         W_guess = SymPolyMat.zero_like(W_test)
 
-        test2d2s = Diabatizer(2,2,W_guess)
-        test2d2s.addPoints(x_data, V_t, (0,1))
+        test2d2s = SingleDiabatizer(2,2,W_guess)
+        test2d2s.addDomain(x_data, V_t)
         test2d2s.optimize()
         W = test2d2s.Wout
         for w, wt in zip(W,W_test):
@@ -1335,8 +1400,8 @@ class TestDiabatizer:
         W_guess[1,1][(1,0)] = -0.5
         W_guess[2,2][(0,0)] = 1
 
-        test2d3s = Diabatizer(3,2,W_guess)
-        test2d3s.addPoints(x_data, V_t, (0,1,2))
+        test2d3s = SingleDiabatizer(3,2,W_guess)
+        test2d3s.addDomain(x_data, V_t)
         test2d3s.optimize()
         W = test2d3s.Wout
 
@@ -1397,8 +1462,8 @@ class TestDiabatizer:
         W_guess[1,1][(0,)] = 1
         W_guess[1,1][(2,)] = 1
 
-        diab = Diabatizer(2,1,W_guess)
-        diab.addPoints(x, V_t, (0,1))
+        diab = SingleDiabatizer(2,1,W_guess)
+        diab.addDomain(x, V_t)
         diab.optimize()
         W = diab.Wout
 
