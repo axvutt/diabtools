@@ -1462,22 +1462,37 @@ class TestDiabatizer:
         W_guess[1,1][(0,)] = 1
         W_guess[1,1][(2,)] = 1
 
-        diab = SingleDiabatizer(2,1,W_guess)
+        diab = SingleDiabatizer(Ns,Nd,W_guess)
         diab.addDomain(x, V_t)
         diab.optimize()
         W = diab.Wout
 
-        # for i in range(3):
-        #     for c, ct in zip(W[i,i].coeffs(), W_test[i,i].coeffs()):
-        #         assert abs(c-ct) < 1E-10
-        #     for j in range(i):
-        #         for c, ct in zip(W[i,j].coeffs(), W_test[i,j].coeffs()):
-        #             assert abs(abs(c)-abs(ct)) < 1E-10
+        # Diabaitize using two matrices
+        W_guess2 = [SymPolyMat.zero_like(Wt1) for _ in range(2)]
+        W_guess2[0][0,0][(0,)] = 0
+        W_guess2[0][1,0][(0,)] = 0.2
+        W_guess2[0][1,1][(0,)] = -1
+        W_guess2[0][1,1][(1,)] = -1
+        W_guess2[1][0,0][(0,)] = 0
+        W_guess2[1][1,0][(0,)] = 0.7
+        W_guess2[1][1,1][(0,)] = 1
+        W_guess2[1][1,1][(1,)] = 1
+        diab2 = Diabatizer(Ns,Nd,2,W_guess2)
+        diab2.addDomain(x[left], V_t[left,:])
+        diab2.addDomain(x[right], V_t[right,:])
+        diab2.setFitDomain(0,0) # matrix 0 to domain 0, all states
+        diab2.setFitDomain(1,1) # matrix 1 to domain 1, all states
+        diab2.optimize()
+        W2 = diab2.Wout
 
         # Show the result if verbose test
         if pytestconfig.getoption("verbose") > 0:
             Wx = W(x)
             self.plot_1d2s_testVSfit(x,W_test_x,V_t,Wx)
+            W2x = [w(x) for w in W2]
+            self.plot_1d2s_testVSfit(x,W_test_x,V_t,W2x[0])
+            self.plot_1d2s_testVSfit(x,W_test_x,V_t,W2x[1])
+
 
     def test_3d3s(self):
         pass
