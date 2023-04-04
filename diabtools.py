@@ -1375,11 +1375,11 @@ class TestDiabatizer:
         # 1: Make target diabatic surfaces
         Wt1 = SymPolyMat(2,1)
         Wt1[0,0] = NdPoly.zero(1)
-        Wt1[1,0] = NdPoly.one(1)*0.5
+        Wt1[1,0] = NdPoly.one(1)*0.1
         Wt1[1,1] = NdPoly({(1,):-1})
         Wt1.x0 = -1
         Wt2 = deepcopy(Wt1)
-        Wt2[1,0] *= 0.1
+        Wt2[1,0] *= 2
         Wt2[1,1] *=  -1
         Wt2.x0 = 1
 

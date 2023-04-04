@@ -9,7 +9,7 @@ from copy import *
 import ConstantsSI as SI
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
-from diabatizer import Diabatizer
+from diabtools import Diabatizer
 
 line_cycler = cyc(
         color=['red', 'green', 'blue', 'magenta', 'cyan', 'y'], 
