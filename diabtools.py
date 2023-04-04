@@ -185,6 +185,8 @@ class NdPoly(UserDict):
         """
         P = 0
         x = np.atleast_2d(x)
+        if self._Nd == 1 and x.shape[0] == 1:   # If x is a row, make it a column
+            x = x.T
         assert x.shape[1] == self._Nd, "Wrong point dimensionality "\
                 + f"{x.shape[1]}, should be {self._Nd}."
         for powers, coeff in self.items():
@@ -366,7 +368,7 @@ class SymPolyMat():
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """ Returns a len(x)*Ns*Ns ndarray of values at x. """
         x = np.atleast_2d(x)
-        if self._Nd == 1:
+        if self._Nd == 1 and x.shape[0] == 1:   # If x is a row, make it a column
             x = x.T
         W = np.zeros((x.shape[0], self._Ns, self._Ns))
         for i in range(self._Ns):   # Compute lower triangular part
