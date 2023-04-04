@@ -31,6 +31,7 @@ class NdPoly(UserDict):
 
         self._Nd = None
         self._degree = None
+        self._x0 = None
         super().__init__(data)  # Sets Nd and degree
         self._zeroPower = tuple([0 for _ in range(self._Nd)])
         self._x0 = np.array([0 for _ in range(self._Nd)])
@@ -168,6 +169,7 @@ class NdPoly(UserDict):
         else:
             assert len(powers) == self._Nd, f"Inappropriate powers {powers}. Expected {self._Nd} integers."
         super().__setitem__(powers, coeff)
+        self.data = dict(sorted(self.data.items())) # Rough sorting, may need improvement
         self._degree = max([sum(p) for p in self.powers()])
 
     def __call__(self, x: np.ndarray):
@@ -183,6 +185,8 @@ class NdPoly(UserDict):
         """
         P = 0
         x = np.atleast_2d(x)
+        assert x.shape[1] == self._Nd, "Wrong point dimensionality "\
+                + f"{x.shape[1]}, should be {self._Nd}."
         for powers, coeff in self.items():
             monomial = 1
             for k in range(len(powers)):
@@ -274,6 +278,18 @@ class NdPoly(UserDict):
         else:
             raise(TypeError)
 
+    def __mul__(self, other: Union[int, float, self.__class__]):
+        result = copy(self)
+        if isinstance(other, self.__class__):
+            # assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
+            raise(NotImplementedError("Product between NdPoly's not yet implemented"))
+        elif isinstance(other, (float, int)):
+            for powers in self.powers():
+                self[powers] *= other
+            return self
+        else:
+            raise(TypeError)
+
     @staticmethod
     def empty(Nd):
         """ Return an empty Nd-dimensional polynomial """
@@ -312,6 +328,7 @@ class SymPolyMat():
         self._Ns = Ns
         self._Nd = Nd
         self._polys = [ NdPoly.empty(Nd) for i in range(Ns) for j in range(i+1) ]
+        self._x0 = np.array([0 for _ in range(self._Nd)])
 
     @property
     def Ns(self):
@@ -320,6 +337,16 @@ class SymPolyMat():
     @property
     def Nd(self):
         return self._Nd
+
+    @property
+    def x0(self):
+        return self._x0
+
+    @x0.setter
+    def x0(self, shift):
+        for p in self._polys:
+            p.x0 = shift
+        self._x0 = shift
 
     def __iter__(self):
         return self._polys.__iter__()
@@ -338,6 +365,9 @@ class SymPolyMat():
 
     def __call__(self, x: np.ndarray) -> np.ndarray:
         """ Returns a len(x)*Ns*Ns ndarray of values at x. """
+        x = np.atleast_2d(x)
+        if self._Nd == 1:
+            x = x.T
         W = np.zeros((x.shape[0], self._Ns, self._Ns))
         for i in range(self._Ns):   # Compute lower triangular part
             for j in range(i+1):
@@ -618,9 +648,15 @@ class TestPoly:
             P[(1,2)] = 3
 
     def test_powersCoeffs(self):
-        P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
-        assert list(P.powers()) == [(1,0,0), (0,1,0), (0,0,1)]
-        assert list(P.coeffs()) == [1,3.14,-1]
+        P = NdPoly({
+            (1,0,0): 1,
+            (0,1,0): 3.14,
+            (2,0,1): 0.42,
+            (1,2,3): 6.66,
+            (0,0,1): -1,
+            })
+        assert list(P.powers()) == [(0,0,1), (0,1,0), (1,0,0), (1,2,3), (2,0,1)]
+        assert list(P.coeffs()) == [-1, 3.14, 1, 6.66, 0.42]
 
     def test_Derivative(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
@@ -635,15 +671,16 @@ class TestPoly:
         Q = P.derivative((1,0,4))
         assert Q == NdPoly.zero(3)
 
-    def test_translated(self):
+    def test_expanded(self):
         P = NdPoly({(2,0): 1, (1,1): 2, (0,2): 0.5})
-        Q = P.translated([1.,1.])
+        P.x0 = [1., 1.]
+        Q = P.expanded()
         assert math.isclose(Q([0,0]), 3.5)
-        # assert Q == NdPoly({
-        #     (0,0): 3.5, (1,0): -4., (2,0): 1.0,
-        #     (0,1): -3., (1,1): 2.0,
-        #     (0,2): 0.5,
-        #     })
+        assert Q == NdPoly({
+            (0,0): 3.5, (1,0): -4., (2,0): 1.0,
+            (0,1): -3., (1,1): 2.0, (2,1): 0.0,
+            (0,2): 0.5, (1,2): 0.0, (2,2): 0.0,
+            })
 
 class TestSymMat:
     testdata = np.linspace(0,1,4)[:,np.newaxis]
@@ -730,6 +767,9 @@ class TestSymMat:
         assert Wx.shape == (len(self.testdata)**Nd, Ns, Ns)
         assert all([np.allclose(Wx[i,:,:], Wx[i,:,:].T) for i in range(len(self.testdata))])
 
+    def test_shift(self):
+       pass 
+
 class TestDiabatizer:
     def test_LiF(self, pytestconfig):
         import ConstantsSI as SI
@@ -761,14 +801,14 @@ class TestDiabatizer:
         # Diabatize
         lif = Diabatizer(2,1, verbosity=2)
         lif.Wguess = W
-        lif.addPoints(x[:,np.newaxis],en,(0,1))
+        lif.addPoints(x,en,(0,1))
         lif.optimize()
         
         if pytestconfig.getoption("verbose") > 0:
             # Make plot using resulting parameters
             r_test = np.logspace(np.log10(2), np.log10(10), 100)
             x_test = 1 - np.exp(-stretch_factor*(r_test-r_x))
-            x_test = x_test[:,np.newaxis]
+            # x_test = x_test[:,np.newaxis]
             yd1_test = lif.Wout[0,0](x_test)
             yd2_test = lif.Wout[1,1](x_test)
             yc_test = lif.Wout[1,0](x_test)
@@ -819,6 +859,76 @@ class TestDiabatizer:
             fig.set_size_inches((12,9))
             # plt.savefig('lif.pdf')
             plt.show()
+
+    def plot_1d2s_testVSfit(self,x,Wt,Vt,W):
+        import matplotlib.pyplot as plt
+        # Reshape
+        W11_t = Wt[:,0,0].reshape(x.shape)
+        W22_t = Wt[:,1,1].reshape(x.shape)
+        W21_t = np.abs(Wt[:,1,0].reshape(x.shape))
+        V1_t = Vt[:,0].reshape(x.shape)
+        V2_t = Vt[:,1].reshape(x.shape)
+
+        W11 = W[:,0,0].reshape(x.shape)
+        W22 = W[:,1,1].reshape(x.shape)
+        W21 = np.abs(W[:,1,0].reshape(x.shape))
+        V1 = adiabatic(W)[0][:,0].reshape(x.shape)
+        V2 = adiabatic(W)[0][:,1].reshape(x.shape)
+
+        # Calculate logarithms of abs(differences)
+        dW11 = np.abs(W11-W11_t)
+        dW22 = np.abs(W22-W22_t)
+        dW21 = np.abs(W21-W21_t)
+        dV1 = np.abs(V1-V1_t)
+        dV2 = np.abs(V2-V2_t)
+        dW11[dW11==0] = np.nan
+        dW22[dW22==0] = np.nan
+        dW21[dW21==0] = np.nan
+        dV1[dV1==0] = np.nan
+        dV2[dV2==0] = np.nan
+       
+        ldW11 = np.log10(dW11)
+        ldW22 = np.log10(dW22)
+        ldW21 = np.log10(dW21)
+        ldV1  = np.log10(dV1)
+        ldV2  = np.log10(dV2)
+
+        # Plot
+        cl = np.linspace(-1,1,21)
+        fig, axs = plt.subplots(3,3)
+        axs[0,0].plot(x,W11_t,color='b')      
+        axs[0,0].plot(x,W22_t,color='r')      
+        axs[0,1].plot(x,W21_t,color='magenta')
+        axs[0,2].plot(x,V1_t, color='lime')    
+        axs[0,2].plot(x,V2_t, color='orange')  
+
+        axs[0,0].set_ylabel("$W_{ii}$ (orig)")
+        axs[0,1].set_ylabel("$W_{12}$ (orig)")
+        axs[0,2].set_ylabel("$V_{i}$ (orig)")
+
+        axs[1,0].plot(x,W11,color='b')      
+        axs[1,0].plot(x,W22,color='r')      
+        axs[1,1].plot(x,W21,color='magenta')
+        axs[1,2].plot(x,V1, color='lime')    
+        axs[1,2].plot(x,V2, color='orange')  
+
+        axs[1,0].set_ylabel("$W_{ii}$ (fit)")
+        axs[1,1].set_ylabel("$W_{12}$ (fit)")
+        axs[1,2].set_ylabel("$V_{i}$ (fit)")
+
+        axs[2,0].plot(x,ldW11,color='b')
+        axs[2,0].plot(x,ldW22,color='r')
+        axs[2,1].plot(x,ldW21,color='magenta')
+        axs[2,2].plot(x,ldV1, color='lime')
+        axs[2,2].plot(x,ldV2, color='orange')
+        axs[2,0].set_ylabel("$\log\Delta W_{ii}$")
+        axs[2,1].set_ylabel("$\log\Delta W_{12}$")
+        axs[2,2].set_ylabel("$\log\Delta V_{i}$")
+        axs[2,0].set_xlabel("$x$")
+        axs[2,1].set_xlabel("$x$")
+        axs[2,2].set_xlabel("$x$")
+
+        plt.show()
 
     def plot_2d2s_testVSfit(self,X,Y,Wt,Vt,W):
         import matplotlib.pyplot as plt
@@ -1239,6 +1349,68 @@ class TestDiabatizer:
         if pytestconfig.getoption("verbose") > 0:
             Wx = W(x_data)
             self.plot_2d3s_testVSfit(X,Y,W_test_x,V_t,Wx)
+
+    def test_1d2s_crossing(self, pytestconfig):
+        """ Two states, one dimension, two distinct avoided crossings
+        1: Construct two arbitrary diabatic potential matrices
+        2: Diagonalize both in order to get the adiabatic PESs
+        3: Fit a unique W_fit to the adiabatic data and verify
+           W_fit != W_test
+        4: Do the fit with two matrices and check if the couplings are
+           now correct
+        """
+        Ns = 2
+        Nd = 1
+
+        # 0: Prepare coordinates
+        xmin, xmax = (-2,2)
+        Nx = 21
+        x = np.linspace(xmin,xmax,Nx)
+        left = range(Nx//2)
+        right = range(Nx//2, Nx)
+        x01, x02 = (-1,1)
+
+        # 1: Make target diabatic surfaces
+        Wt1 = SymPolyMat(2,1)
+        Wt1[0,0] = NdPoly.zero(1)
+        Wt1[1,0] = NdPoly.one(1)*0.5
+        Wt1[1,1] = NdPoly({(1,):-1})
+        Wt1.x0 = -1
+        Wt2 = deepcopy(Wt1)
+        Wt2[1,0] *= 0.1
+        Wt2[1,1] *=  -1
+        Wt2.x0 = 1
+
+        W_test_x = np.zeros((Nx, Ns, Ns))
+        W_test_x[left,:,:] = Wt1(x[left])
+        W_test_x[right,:,:] = Wt2(x[right])
+
+        # 2: Make test adiabatic surfaces
+        V_t = adiabatic(W_test_x)[0]
+
+        # 3: Fit diabatize test adiabatic surfaces
+        W_guess = SymPolyMat.zero_like(Wt1)
+        W_guess[0,0][(0,)] = 0
+        W_guess[1,0][(0,)] = 0.2
+        W_guess[1,1][(0,)] = 1
+        W_guess[1,1][(2,)] = 1
+
+        diab = Diabatizer(2,1,W_guess)
+        diab.addPoints(x, V_t, (0,1))
+        diab.optimize()
+        W = diab.Wout
+
+        # for i in range(3):
+        #     for c, ct in zip(W[i,i].coeffs(), W_test[i,i].coeffs()):
+        #         assert abs(c-ct) < 1E-10
+        #     for j in range(i):
+        #         for c, ct in zip(W[i,j].coeffs(), W_test[i,j].coeffs()):
+        #             assert abs(abs(c)-abs(ct)) < 1E-10
+
+        # Show the result if verbose test
+        if pytestconfig.getoption("verbose") > 0:
+            Wx = W(x)
+            self.plot_1d2s_testVSfit(x,W_test_x,V_t,Wx)
 
     def test_3d3s(self):
         pass
