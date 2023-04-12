@@ -183,14 +183,14 @@ class NdPoly(UserDict):
         P
         np.ndarray containing the N values of the polynomial over the given x meshgrids.
         """
-        P = 0
         x = np.atleast_2d(x)
         if self._Nd == 1 and x.shape[0] == 1:   # If x is a row, make it a column
             x = x.T
         assert x.shape[1] == self._Nd, "Wrong point dimensionality "\
                 + f"{x.shape[1]}, should be {self._Nd}."
+        P = np.zeros((x.shape[0],))
         for powers, coeff in self.items():
-            monomial = 1
+            monomial = np.ones((x.shape[0],))
             for k in range(len(powers)):
                 monomial *= (x[:,k]-self._x0[k])**powers[k]
             P += coeff * monomial

@@ -15,6 +15,8 @@ class TestPoly:
         assert len(E.keys()) == 0
         assert E.zeroPower == (0,0,0)
         assert np.all(E.x0 == np.array([0,0,0]))
+        assert E([1.,2.,3.]) == 0
+        assert np.all(E(np.random.rand(10,3)) == np.zeros((10,)))
 
     def test_Zero(self):
         P = NdPoly.zero(3)
