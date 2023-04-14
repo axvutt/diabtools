@@ -348,7 +348,7 @@ class SymPolyMat():
     def x0(self, shift):
         for p in self._polys:
             p.x0 = shift
-        self._x0 = shift
+        self._x0 = np.array(shift).flatten()
 
     def __iter__(self):
         return self._polys.__iter__()

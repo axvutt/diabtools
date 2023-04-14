@@ -634,7 +634,7 @@ class TestDiabatizer:
         diab.optimize()
         W = diab.Wout
 
-        # Diabaitize using two matrices
+        # Diabatize using two matrices
         W_guess2 = [SymPolyMat.zero_like(Wt1) for _ in range(2)]
         W_guess2[0][0,0][(0,)] = 0
         W_guess2[0][1,0][(0,)] = 0.2

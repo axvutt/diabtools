@@ -87,4 +87,7 @@ class TestSymMat:
         assert all([np.allclose(Wx[i,:,:], Wx[i,:,:].T) for i in range(len(self.testdata))])
 
     def test_shift(self):
-       pass 
+        W = SymPolyMat.eye(3,2)
+        W.x0 = np.array([1.,1.])
+        assert all([np.all(p.x0 == W.x0) for p in W])
+        
