@@ -552,15 +552,16 @@ class Diabatizer:
                     coeffs_map[(i,j,powers)] = coeff 
         return coeffs_map
 
-    def _rebuildDiabatic(self, keys, coeffs) -> SymPolyMat:
+    def _rebuildDiabatic(self, keys, coeffs, x0) -> SymPolyMat:
         W = SymPolyMat(self._Ns, self._Nd)
+        W.x0 = x0
         for n, key in enumerate(keys):
             i, j, powers = key
             W[i,j][powers] = coeffs[n]
         return W
 
-    def cost_function(self, c, keys, i_matrix):
-        W_iteration = self._rebuildDiabatic(keys, c)
+    def cost_function(self, c, keys, i_matrix, x0):
+        W_iteration = self._rebuildDiabatic(keys, c, x0)
         f = np.array([])
         for id_domain, states in self._domainMap[i_matrix].items():
             W = W_iteration(self._x[id_domain])
@@ -595,10 +596,10 @@ class Diabatizer:
                     gtol=1e-10,
                     ftol=1e-10,
                     xtol=1e-10,
-                    args=(keys, i_matrix),
+                    args=(keys, i_matrix, self._Wguess[i_matrix].x0),
                     verbose=self._verbosity)
 
-            self._Wout[i_matrix] = self._rebuildDiabatic(keys, lsfit.x)
+            self._Wout[i_matrix] = self._rebuildDiabatic(keys, lsfit.x, self._Wguess[i_matrix].x0)
 
         return lsfit, self._Wout
 

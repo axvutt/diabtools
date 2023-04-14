@@ -652,6 +652,22 @@ class TestDiabatizer:
         diab2.optimize()
         W2 = diab2.Wout
 
+        # Same, but with shifted matrices
+        W_guess3 = [SymPolyMat(2,1) for _ in range(2)]
+        W_guess3[0][1,0][(0,)] = 0.2
+        W_guess3[0][1,1][(1,)] = -1
+        W_guess3[0].x0 = -1
+        W_guess3[1][1,0][(0,)] = 0.7
+        W_guess3[1][1,1][(1,)] = 1
+        W_guess3[1].x0 = 1
+        diab3 = Diabatizer(Ns,Nd,2,W_guess3)
+        diab3.addDomain(x[left], V_t[left,:])
+        diab3.addDomain(x[right], V_t[right,:])
+        diab3.setFitDomain(0,0) # matrix 0 to domain 0, all states
+        diab3.setFitDomain(1,1) # matrix 1 to domain 1, all states
+        diab3.optimize()
+        W3 = diab3.Wout
+
         # Show the result if verbose test
         if pytestconfig.getoption("verbose") > 0:
             Wx = W(x)
@@ -659,6 +675,9 @@ class TestDiabatizer:
             W2x = [w(x) for w in W2]
             self.plot_1d2s_testVSfit(x,W_test_x,V_t,W2x[0])
             self.plot_1d2s_testVSfit(x,W_test_x,V_t,W2x[1])
+            W3x = [w(x) for w in W3]
+            self.plot_1d2s_testVSfit(x,W_test_x,V_t,W3x[0])
+            self.plot_1d2s_testVSfit(x,W_test_x,V_t,W3x[1])
 
 
     def test_3d3s(self):
