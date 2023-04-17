@@ -324,6 +324,42 @@ class NdPoly(UserDict):
         and all the others with zero coefficient """
         return NdPoly({ p : 0 for p in list(P.powers()) }) + 1
 
+    @staticmethod
+    def zero_maxdegree(Nd, degree):
+        """ Return a polynomial with all powers up to a given degree """
+        def get_tuples(length, total):
+            """ Generator which essentially constructs all the
+            tuples of a given length and sum of its integer entries.
+
+            Taken from https://stackoverflow.com/questions/29170953
+            """
+            # Idea:
+            # Make 1D tuples from total to zero
+            # Prepend index such that the sum of the 2D tuple is total
+            # Make 1D tuples from (total-1) to zero
+            # Prepend index such that the sum of the 2D tuple is (total-1)
+            # ................... (total-2) to zero
+            # .................................................. (total-2)
+            # For each generated 2D tuple:
+            # Prepend index such that the sum of the 3D tuple is total
+            # [... continue if 4D ...]
+            # Prepend index such that the sum of the 3D tuple is (total-1)
+            # etc...
+
+            if length == 1:
+                yield (total,)
+                return
+
+            for i in range(total + 1):
+                for t in get_tuples(length - 1, total - i):
+                    yield (i,) + t
+
+        return NdPoly({p : 0 for p in get_tuples(Nd, degree)})
+
+    @staticmethod
+    def one_maxdegree(Nd, degree):
+        return NdPoly.zero_maxdegree(Nd, degree) + 1
+
 class SymPolyMat():
     """ Real symmetric matrix of multivariate polynomial functions """
     def __init__(self, Ns, Nd):
