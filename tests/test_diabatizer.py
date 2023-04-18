@@ -127,6 +127,12 @@ class TestDiabatizer:
         ldV1  = np.log10(dV1)
         ldV2  = np.log10(dV2)
 
+        # Quick and dirty fix for the improbable case where fit and data match exactly
+        for ld in [ldW11, ldW22, ldW21, ldV1, ldV2]:
+            if np.all(np.isnan(ld)):
+                ld.fill(-16)
+                ld[0] = -16.1
+
         # Plot
         cl = np.linspace(-1,1,21)
         fig, axs = plt.subplots(3,3)
@@ -196,6 +202,12 @@ class TestDiabatizer:
         ldW21 = np.log10(dW21)
         ldV1  = np.log10(dV1)
         ldV2  = np.log10(dV2)
+        
+        # Quick and dirty fix for the improbable case where fit and data match exactly
+        for ld in [ldW11, ldW22, ldW21, ldV1, ldV2]:
+            if np.all(np.isnan(ld)):
+                ld.fill(-16)
+                ld[0,0] = -16.1
 
         # Plot
         cl = np.linspace(-1,1,21)
@@ -311,6 +323,12 @@ class TestDiabatizer:
         ldV1  = np.log10(dV1)
         ldV2  = np.log10(dV2)
         ldV3  = np.log10(dV3)
+        
+        # Quick and dirty fix for the improbable case where fit and data match exactly
+        for ld in [ldW11, ldW22, ldW33, ldW21, ldW31, ldW32, ldV1, ldV2, ldV3]:
+            if np.all(np.isnan(ld)):
+                ld.fill(-16)
+                ld[0,0] = -16.1
 
         # Plot
         cmapW11='Blues_r'
