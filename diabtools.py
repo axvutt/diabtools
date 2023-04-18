@@ -20,6 +20,10 @@ class NdPoly(UserDict):
         - values are the coefficients multiplied by the associated monomial.
 
     """
+
+    # TODO: make slots work so as to avoid extra attribute declaration
+    # __slots__ = ('_Nd', '_degree', '_x0', '_zeroPower', '_x0')
+
     def __init__(self, data):
         if len(data) == 0:
             raise(ValueError("Cannot make empty polynomial with unknown " \
@@ -380,7 +384,7 @@ class SymPolyMat():
         return all_x0
 
     def set_common_x0(self, shift):
-        assert len(shift) == self.Nd, "Wrong x0 size."
+        assert len(np.array(shift).flatten()) == self._Nd, "Wrong x0 size."
         for p in self._polys:
             p.x0 = shift
 

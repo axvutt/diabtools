@@ -627,11 +627,15 @@ class TestDiabatizer:
         Wt1[0,0] = NdPoly.zero(1)
         Wt1[1,0] = NdPoly.one(1)*0.1
         Wt1[1,1] = NdPoly({(1,):-1})
-        Wt1.x0 = -1
+        # TODO: check __slots__
+        # Wt1.x0 = -1
+        Wt1.set_common_x0(-1.)
         Wt2 = deepcopy(Wt1)
         Wt2[1,0] *= 2
         Wt2[1,1] *=  -1
-        Wt2.x0 = 1
+        # TODO: check __slots__
+        # Wt2.x0 = 1
+        Wt2.set_common_x0(1.)
 
         W_test_x = np.zeros((Nx, Ns, Ns))
         W_test_x[left,:,:] = Wt1(x[left])
@@ -674,10 +678,10 @@ class TestDiabatizer:
         W_guess3 = [SymPolyMat(2,1) for _ in range(2)]
         W_guess3[0][1,0][(0,)] = 0.2
         W_guess3[0][1,1][(1,)] = -1
-        W_guess3[0].x0 = -1
+        W_guess3[0].set_common_x0(-1.)
         W_guess3[1][1,0][(0,)] = 0.7
         W_guess3[1][1,1][(1,)] = 1
-        W_guess3[1].x0 = 1
+        W_guess3[1].set_common_x0(1.)
         diab3 = Diabatizer(Ns,Nd,2,W_guess3)
         diab3.addDomain(x[left], V_t[left,:])
         diab3.addDomain(x[right], V_t[right,:])
