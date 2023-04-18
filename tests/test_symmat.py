@@ -86,8 +86,16 @@ class TestSymMat:
         assert Wx.shape == (len(self.testdata)**Nd, Ns, Ns)
         assert all([np.allclose(Wx[i,:,:], Wx[i,:,:].T) for i in range(len(self.testdata))])
 
-    def test_shift(self):
+    def test_common_shift(self):
         W = SymPolyMat.eye(3,2)
-        W.x0 = np.array([1.,1.])
-        assert all([np.all(p.x0 == W.x0) for p in W])
+        W.set_common_x0(np.array([1.,1.]))
+        assert all([np.all(p.x0 == np.array([1.,1.])) for p in W])
+        
+    def test_separate_shifts(self):
+        W = SymPolyMat.eye(3,2)
+        for i in range(3):
+            for j in range(i+1):
+                W[i,j].x0 = [0.1*i, 0.2*j]
+        allx0 = W.get_all_x0()
+        assert all([np.all(W[idx].x0 == allx0[idx]) for idx in allx0])
         

@@ -366,7 +366,6 @@ class SymPolyMat():
         self._Ns = Ns
         self._Nd = Nd
         self._polys = [ NdPoly.empty(Nd) for i in range(Ns) for j in range(i+1) ]
-        self._x0 = np.array([0 for _ in range(self._Nd)])
 
     @property
     def Ns(self):
@@ -376,15 +375,14 @@ class SymPolyMat():
     def Nd(self):
         return self._Nd
 
-    @property
-    def x0(self):
-        return self._x0
+    def get_all_x0(self):
+        all_x0 = {(i,j): self[i,j].x0 for i in range(self._Ns) for j in range(i+1)}
+        return all_x0
 
-    @x0.setter
-    def x0(self, shift):
+    def set_common_x0(self, shift):
+        assert len(shift) == self.Nd, "Wrong x0 size."
         for p in self._polys:
             p.x0 = shift
-        self._x0 = np.array(shift).flatten()
 
     def __iter__(self):
         return self._polys.__iter__()
@@ -581,6 +579,8 @@ class Diabatizer:
             self.setFitDomain(n_matrix, idd)
 
     def _coeffsMapping(self, W: SymPolyMat) -> dict:
+        """ Create mapping from a given (i,j,powers) to corresponding
+        coefficient. """
         coeffs_map = dict()
         for i in range(self._Ns):
             for j in range(i+1):
@@ -588,16 +588,32 @@ class Diabatizer:
                     coeffs_map[(i,j,powers)] = coeff 
         return coeffs_map
 
-    def _rebuildDiabatic(self, keys, coeffs, x0) -> SymPolyMat:
+    def _rebuildDiabatic(self, keys, coeffs, dict_x0) -> SymPolyMat:
+        """ Given keys = list of (i,j,powers) and coeffs = [c1,c2,...]
+        build diabatic matrix W[i,j][powers] = c_n """
         W = SymPolyMat(self._Ns, self._Nd)
-        W.x0 = x0
+
+        # Coefficients
         for n, key in enumerate(keys):
             i, j, powers = key
             W[i,j][powers] = coeffs[n]
+
+        # Shifts
+        for idx, x0 in dict_x0.items():
+            W[idx].x0 = x0
+
         return W
 
-    def cost_function(self, c, keys, i_matrix, x0):
-        W_iteration = self._rebuildDiabatic(keys, c, x0)
+    def cost_function(self, c, keys, i_matrix, dict_x0):
+        """ Cost function evaluated for finding the optimal coefficients c
+        such that the adiabatic surfaces obtained from diagonalization of the
+        diabatic ansatz fit the adiabatic data. """
+
+        # Construct diabatic matrix by reassigning coefficients to
+        # powers of each of the matrix elements
+        W_iteration = self._rebuildDiabatic(keys, c, dict_x0)
+
+        # Compute cost function
         f = np.array([])
         for id_domain, states in self._domainMap[i_matrix].items():
             W = W_iteration(self._x[id_domain])
@@ -632,10 +648,14 @@ class Diabatizer:
                     gtol=1e-10,
                     ftol=1e-10,
                     xtol=1e-10,
-                    args=(keys, i_matrix, self._Wguess[i_matrix].x0),
+                    args=(keys, i_matrix, self._Wguess[i_matrix].get_all_x0()),
                     verbose=self._verbosity)
 
-            self._Wout[i_matrix] = self._rebuildDiabatic(keys, lsfit.x, self._Wguess[i_matrix].x0)
+            self._Wout[i_matrix] = self._rebuildDiabatic(
+                    keys,
+                    lsfit.x,
+                    self._Wguess[i_matrix].get_all_x0()
+                    )
 
         return lsfit, self._Wout
 
