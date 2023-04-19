@@ -33,10 +33,10 @@ class TestDiabatizer:
         W[1,0] = NdPoly({(0,): 0.0})
 
         # Diabatize
-        lif = SingleDiabatizer(2,1, verbosity=2)
+        lif = SingleDiabatizer(2,1)
         lif.Wguess = W
         lif.addDomain(x,en)
-        lif.optimize()
+        lif.optimize(verbose=2)
         
         if pytestconfig.getoption("verbose") > 0:
             # Make plot using resulting parameters

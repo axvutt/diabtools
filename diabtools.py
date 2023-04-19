@@ -513,7 +513,7 @@ class SymPolyMat():
 
 
 class Diabatizer:
-    def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None, **kwargs):
+    def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None):
         self._Nd = Nd
         self._Ns = Ns
         self._Nm = Nm
@@ -528,7 +528,6 @@ class Diabatizer:
         self._domainIDs = set()
         self._Ndomains = 0
         self._lastDomainID = 0
-        self._verbosity = kwargs.get("verbosity", 0)
         self._autoFit = True
 
     @property
@@ -659,7 +658,7 @@ class Diabatizer:
                 f = np.hstack((f, V[:,s]-self._energies[id_domain][:,s]))
         return f 
 
-    def optimize(self):
+    def optimize(self, verbose=0):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -686,7 +685,7 @@ class Diabatizer:
                     ftol=1e-10,
                     xtol=1e-10,
                     args=(keys, i_matrix, self._Wguess[i_matrix].get_all_x0()),
-                    verbose=self._verbosity)
+                    verbose=verbose)
 
             self._Wout[i_matrix] = self._rebuildDiabatic(
                     keys,
