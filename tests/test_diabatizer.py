@@ -628,13 +628,13 @@ class TestDiabatizer:
         Wt1[1,0] = NdPoly.one(1)*0.1
         Wt1[1,1] = NdPoly({(1,):-1})
         # TODO: check __slots__
-        # Wt1.x0 = -1
+        # Wt1.x0 = -1   # should not work
         Wt1.set_common_x0(-1.)
         Wt2 = deepcopy(Wt1)
         Wt2[1,0] *= 2
         Wt2[1,1] *=  -1
         # TODO: check __slots__
-        # Wt2.x0 = 1
+        # Wt2.x0 = 1    # should not work
         Wt2.set_common_x0(1.)
 
         W_test_x = np.zeros((Nx, Ns, Ns))
