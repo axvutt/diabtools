@@ -392,6 +392,7 @@ class NdPoly(UserDict):
     def one_maxdegree(Nd, degree):
         return NdPoly.zero_maxdegree(Nd, degree) + 1
 
+
 class SymPolyMat():
     """ Real symmetric matrix of multivariate polynomial functions """
     def __init__(self, Ns, Nd):
@@ -506,6 +507,7 @@ class SymPolyMat():
                 if i == j :
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
+
 
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None, **kwargs):
