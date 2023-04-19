@@ -54,6 +54,14 @@ class NdPoly(UserDict):
         return max_degree 
 
     @property
+    def def_degree(self):
+        """ Return the degree of the polynomial including all defined terms, even zero. """
+        max_degree = -1
+        for p in self:
+            max_degree = max(max_degree, sum(p))
+        return max_degree 
+
+    @property
     def zeroPower(self):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
         return self._zeroPower

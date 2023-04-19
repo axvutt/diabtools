@@ -18,6 +18,7 @@ class TestPoly:
         assert E([1.,2.,3.]) == 0
         assert np.all(E(np.random.rand(10,3)) == np.zeros((10,)))
         assert E.degree == -1
+        assert E.def_degree == -1
 
     def test_Zero(self):
         P = NdPoly.zero(3)
@@ -27,6 +28,7 @@ class TestPoly:
         assert P[P.zeroPower] == 0
         assert np.all(P(X) == 0)
         assert P.degree == -1
+        assert P.def_degree == 0
 
     def test_One(self):
         P = NdPoly.one(3)
@@ -36,6 +38,7 @@ class TestPoly:
         assert P[P.zeroPower] == 1
         assert np.all(P(X) == 1)
         assert P.degree == 0
+        assert P.def_degree == 0
 
     def test_ZeroLike(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
@@ -43,7 +46,9 @@ class TestPoly:
         assert all([ p == q for p, q in zip(list(P.powers()), list(Q.powers()))])
         assert all([ c == 0 for c in list(Q.coeffs())])
         assert P.degree == 1
+        assert P.def_degree == 1
         assert Q.degree == -1
+        assert Q.def_degree == 1
 
     def test_OneLike(self):
         P = NdPoly({(0,0,0): 6.66, (1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
@@ -53,7 +58,9 @@ class TestPoly:
         Q[(0,0,0)] = 0
         assert all([ c == 0 for c in list(Q.coeffs())])
         assert P.degree == 1
+        assert P.def_degree == 1
         assert Q.degree == -1
+        assert Q.def_degree == 1
 
     def test_AddConstant(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
@@ -64,7 +71,9 @@ class TestPoly:
         P += 1
         assert P[P.zeroPower] == 1
         assert P.degree == 1
+        assert P.def_degree == 1
         assert Q.degree == 1
+        assert Q.def_degree == 1
 
     def test_AddPoly(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
@@ -72,8 +81,11 @@ class TestPoly:
         R = P + Q
         assert R == NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1, (0,0,0): 1, (2,1,0): 0.42})
         assert P.degree == 1
+        assert P.def_degree == 1
         assert Q.degree == 3
+        assert Q.def_degree == 3
         assert R.degree == 3
+        assert R.def_degree == 3
 
     def test_PolyValues(self):
         X,Y,Z = np.meshgrid(self.testdata, self.testdata, self.testdata)
@@ -106,12 +118,19 @@ class TestPoly:
         assert list(P.coeffs()) == [-1, 3.14, 1, 6.66, 0.42]
 
     def test_Derivative(self):
-        P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
+        P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14, (0,0,6): 0})
         Q = P.derivative((1,0,1))
+        R = P.derivative((0,0,4))
         exp_powers = [(0,2,2)]
         exp_coeffs = [0.3]
         assert all(p == pe for p,pe in zip(list(Q.powers()), exp_powers))
         assert all(abs(c-e) < 1E-10 for c,e in zip(list(Q.coeffs()), exp_coeffs))
+        assert P.degree == 6
+        assert P.def_degree == 6
+        assert Q.degree == 4
+        assert Q.def_degree == 4
+        assert R.degree == -1
+        assert R.def_degree == 2
 
     def test_DerivativeNull(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
@@ -149,9 +168,10 @@ class TestPoly:
             (4, 0, 0)]
         assert all([p in P for p in powers])
         assert P.degree == -1
+        assert P.def_degree == 4
 
     def test_grow(self):
-        P = NdPoly({(1,0,3): 0.1, (3,0,0): 3.14})
+        P = NdPoly({(1,0,1): 0.1, (3,0,0): 3.14})
         P.grow_degree(4)
         powers = [
             (0, 0, 0),
@@ -170,14 +190,16 @@ class TestPoly:
             (3, 0, 1), (3, 1, 0), 
             (4, 0, 0)]
         powers_diff = copy(powers)
-        powers_diff.remove((1,0,3))
+        powers_diff.remove((1,0,1))
         powers_diff.remove((3,0,0))
         assert all([p in P for p in powers])
-        assert P[(1,0,3)] == 0.1
+        assert P[(1,0,1)] == 0.1
         assert P[(3,0,0)] == 3.14
         assert all([P[p] == 0 for p in powers_diff])
-        assert P.degree == 4
+        assert P.degree == 3
+        assert P.def_degree == 4
 
     def test_degree(self):
         P = NdPoly({(1,2,3): 4, (0,1,2): 3, (3,0,2): 3, (0,4,0): 3, (2,2,2): 3, (6,6,6): 0})
         assert P.degree == 6
+        assert P.def_degree == 18
