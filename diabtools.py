@@ -190,6 +190,9 @@ class NdPoly(UserDict):
         else:
             return D
 
+    def remove(self, key):
+        del self[key]
+
     def __setitem__(self, powers, coeff):
         if self._Nd is None and len(powers) != 0 :
             self._Nd = len(powers)
