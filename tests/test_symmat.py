@@ -87,15 +87,35 @@ class TestSymMat:
         assert all([np.allclose(Wx[i,:,:], Wx[i,:,:].T) for i in range(len(self.testdata))])
 
     def test_common_shift(self):
-        W = SymPolyMat.eye(3,2)
-        W.set_common_x0(np.array([1.,1.]))
-        assert all([np.all(p.x0 == np.array([1.,1.])) for p in W])
-        
-    def test_separate_shifts(self):
-        W = SymPolyMat.eye(3,2)
+        W = SymPolyMat.zero(3,2)
         for i in range(3):
             for j in range(i+1):
+                n = i+j
+                W[i,j][(0,0)] = n
+                W[i,j][(1,0)] = n+1
+                W[i,j][(0,1)] = n+2
+                W[i,j][(1,1)] = n+3
+        W.set_common_x0(np.array([1.,1.]))
+        assert all([np.all(p.x0 == np.array([1.,1.])) for p in W])
+        assert np.all(W([1., 1.]) == np.array([[0,1,2],[1,2,3],[2,3,4]]))
+        
+    def test_separate_shifts(self):
+        W = SymPolyMat.zero(3,2)
+        for i in range(3):
+            for j in range(i+1):
+                n = i+j
+                W[i,j][(0,0)] = n
+                W[i,j][(1,0)] = n+1
+                W[i,j][(0,1)] = n+2
+                W[i,j][(1,1)] = n+3
                 W[i,j].x0 = [0.1*i, 0.2*j]
         allx0 = W.get_all_x0()
-        assert all([np.all(W[idx].x0 == allx0[idx]) for idx in allx0])
-        
+        assert all([
+            np.all(W[0,0].x0 == np.array([0.0, 0.0])),
+            np.all(W[1,0].x0 == np.array([0.1, 0.0])),
+            np.all(W[2,0].x0 == np.array([0.2, 0.0])),
+            np.all(W[1,1].x0 == np.array([0.1, 0.2])),
+            np.all(W[2,1].x0 == np.array([0.2, 0.2])),
+            np.all(W[2,2].x0 == np.array([0.2, 0.4])),
+            ])
+        assert all([W[i,j](W[i,j].x0) == i+j for i in range(3) for j in range(i+1)])
