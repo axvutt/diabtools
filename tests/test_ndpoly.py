@@ -17,6 +17,7 @@ class TestPoly:
         assert np.all(E.x0 == np.array([0,0,0]))
         assert E([1.,2.,3.]) == 0
         assert np.all(E(np.random.rand(10,3)) == np.zeros((10,)))
+        assert E.degree == -1
 
     def test_Zero(self):
         P = NdPoly.zero(3)
@@ -25,6 +26,7 @@ class TestPoly:
         assert list(P.powers()) == [P.zeroPower]
         assert P[P.zeroPower] == 0
         assert np.all(P(X) == 0)
+        assert P.degree == -1
 
     def test_One(self):
         P = NdPoly.one(3)
@@ -33,12 +35,15 @@ class TestPoly:
         assert list(P.powers()) == [P.zeroPower]
         assert P[P.zeroPower] == 1
         assert np.all(P(X) == 1)
+        assert P.degree == 0
 
     def test_ZeroLike(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
         Q = NdPoly.zero_like(P)
         assert all([ p == q for p, q in zip(list(P.powers()), list(Q.powers()))])
         assert all([ c == 0 for c in list(Q.coeffs())])
+        assert P.degree == 1
+        assert Q.degree == -1
 
     def test_OneLike(self):
         P = NdPoly({(0,0,0): 6.66, (1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
@@ -47,6 +52,8 @@ class TestPoly:
         assert Q[(0,0,0)] == 1
         Q[(0,0,0)] = 0
         assert all([ c == 0 for c in list(Q.coeffs())])
+        assert P.degree == 1
+        assert Q.degree == -1
 
     def test_AddConstant(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
@@ -56,12 +63,17 @@ class TestPoly:
         assert Q[Q.zeroPower] == 2.23
         P += 1
         assert P[P.zeroPower] == 1
+        assert P.degree == 1
+        assert Q.degree == 1
 
     def test_AddPoly(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
         Q = NdPoly({(0,0,0): 1, (2,1,0): 0.42})
         R = P + Q
         assert R == NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1, (0,0,0): 1, (2,1,0): 0.42})
+        assert P.degree == 1
+        assert Q.degree == 3
+        assert R.degree == 3
 
     def test_PolyValues(self):
         X,Y,Z = np.meshgrid(self.testdata, self.testdata, self.testdata)
@@ -136,6 +148,7 @@ class TestPoly:
             (3, 0, 1), (3, 1, 0), 
             (4, 0, 0)]
         assert all([p in P for p in powers])
+        assert P.degree == -1
 
     def test_grow(self):
         P = NdPoly({(1,0,3): 0.1, (3,0,0): 3.14})
@@ -163,4 +176,8 @@ class TestPoly:
         assert P[(1,0,3)] == 0.1
         assert P[(3,0,0)] == 3.14
         assert all([P[p] == 0 for p in powers_diff])
+        assert P.degree == 4
 
+    def test_degree(self):
+        P = NdPoly({(1,2,3): 4, (0,1,2): 3, (3,0,2): 3, (0,4,0): 3, (2,2,2): 3, (6,6,6): 0})
+        assert P.degree == 6

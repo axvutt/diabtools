@@ -34,7 +34,6 @@ class NdPoly(UserDict):
         self.coeffs = self.values
 
         self._Nd = None
-        self._degree = None
         self._x0 = None
         super().__init__(data)  # Sets Nd and degree
         self._zeroPower = tuple([0 for _ in range(self._Nd)])
@@ -47,8 +46,13 @@ class NdPoly(UserDict):
 
     @property
     def degree(self):
-        return self._degree
-    
+        """ Return the degree of the polynomial. """
+        max_degree = -1
+        for p in self:
+            if self[p] != 0:
+                max_degree = max(max_degree, sum(p))
+        return max_degree 
+
     @property
     def zeroPower(self):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
@@ -185,7 +189,6 @@ class NdPoly(UserDict):
             assert len(powers) == self._Nd, f"Inappropriate powers {powers}. Expected {self._Nd} integers."
         super().__setitem__(powers, coeff)
         self.data = dict(sorted(self.data.items())) # Rough sorting, may need improvement
-        self._degree = max([sum(p) for p in self.powers()])
 
     def __call__(self, x: np.ndarray):
         """ Calculate value of the polynomial at x.
