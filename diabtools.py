@@ -124,6 +124,17 @@ class NdPoly(UserDict):
         """
         self[self._zeroPower] = 0
 
+    def grow_degree(self, degree: int):
+        """ Add all the terms to the polynomial up to a given degree,
+        without changing already defined terms.
+        """
+        for n in range(degree + 1):
+            powers = NdPoly._get_tuples(self._Nd, n)
+            for p in powers:
+                if p in self:
+                    continue
+                self[p] = 0
+
     def derivative(self, orders: tuple):
         """ Partial derivative of the polynomial
         
@@ -329,36 +340,42 @@ class NdPoly(UserDict):
         return NdPoly({ p : 0 for p in list(P.powers()) }) + 1
 
     @staticmethod
+    def _get_tuples(length, total):
+        """ Generator which essentially constructs all the
+        tuples of a given length and sum of its integer entries.
+
+        Taken from https://stackoverflow.com/questions/29170953
+        """
+        # Idea:
+        # Make 1D tuples from total to zero
+        # Prepend index such that the sum of the 2D tuple is total
+        # Make 1D tuples from (total-1) to zero
+        # Prepend index such that the sum of the 2D tuple is (total-1)
+        # ................... (total-2) to zero
+        # .................................................. (total-2)
+        # For each generated 2D tuple:
+        # Prepend index such that the sum of the 3D tuple is total
+        # [... continue if 4D ...]
+        # Prepend index such that the sum of the 3D tuple is (total-1)
+        # etc...
+
+        if length == 1:
+            yield (total,)
+            return
+
+        for i in range(total + 1):
+            for t in NdPoly._get_tuples(length - 1, total - i):
+                yield (i,) + t
+
+    @staticmethod
     def zero_maxdegree(Nd, degree):
         """ Return a polynomial with all powers up to a given degree """
-        def get_tuples(length, total):
-            """ Generator which essentially constructs all the
-            tuples of a given length and sum of its integer entries.
-
-            Taken from https://stackoverflow.com/questions/29170953
-            """
-            # Idea:
-            # Make 1D tuples from total to zero
-            # Prepend index such that the sum of the 2D tuple is total
-            # Make 1D tuples from (total-1) to zero
-            # Prepend index such that the sum of the 2D tuple is (total-1)
-            # ................... (total-2) to zero
-            # .................................................. (total-2)
-            # For each generated 2D tuple:
-            # Prepend index such that the sum of the 3D tuple is total
-            # [... continue if 4D ...]
-            # Prepend index such that the sum of the 3D tuple is (total-1)
-            # etc...
-
-            if length == 1:
-                yield (total,)
-                return
-
-            for i in range(total + 1):
-                for t in get_tuples(length - 1, total - i):
-                    yield (i,) + t
-
-        return NdPoly({p : 0 for p in get_tuples(Nd, degree)})
+        P = NdPoly.empty(Nd)
+        for n in range(degree + 1):
+            powers = NdPoly._get_tuples(Nd, n)
+            for p in powers:
+                P[p] = 0
+        return P
 
     @staticmethod
     def one_maxdegree(Nd, degree):
