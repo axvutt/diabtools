@@ -170,6 +170,35 @@ class TestPoly:
         assert P.degree == -1
         assert P.def_degree == 4
 
+    def test_maxdegree_limited(self):
+        P = NdPoly.fill_maxdegree(3, 4, fill=0.1, max_pdeg=(3,2,None))
+        powers = [
+            (0, 0, 0),
+            (0, 0, 1), (0, 1, 0),
+            (1, 0, 0), 
+            (0, 0, 2), (0, 1, 1), (0, 2, 0),
+            (1, 0, 1), (1, 1, 0),
+            (2, 0, 0), 
+            (0, 0, 3), (0, 1, 2), (0, 2, 1), 
+            (1, 0, 2), (1, 1, 1), (1, 2, 0),
+            (2, 0, 1), (2, 1, 0),
+            (3, 0, 0), 
+            (0, 0, 4), (0, 1, 3), (0, 2, 2), 
+            (1, 0, 3), (1, 1, 2), (1, 2, 1), 
+            (2, 0, 2), (2, 1, 1), (2, 2, 0),
+            (3, 0, 1), (3, 1, 0), 
+            ]
+        excluded_powers = [
+            (0, 3, 0), 
+            (0, 3, 1), (0, 4, 0),
+            (1, 3, 0),
+            (4, 0, 0)]
+        assert all([coeff == 0.1 for coeff in P.coeffs()])
+        assert all([p in P for p in powers])
+        assert all([p not in P for p in excluded_powers])
+        assert P.degree == 4
+        assert P.def_degree == 4
+
     def test_grow(self):
         P = NdPoly({(1,0,1): 0.1, (3,0,0): 3.14})
         P.grow_degree(4)

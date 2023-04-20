@@ -136,16 +136,30 @@ class NdPoly(UserDict):
         """
         self[self._zeroPower] = 0
 
-    def grow_degree(self, degree: int):
+    def grow_degree(self, degree: int, fill = 0, max_pdeg = None):
         """ Add all the terms to the polynomial up to a given degree,
         without changing already defined terms.
+        max_pdeg:
+        tuple or list of the maximum partial degrees that can be reached by
+        the corresponding coordinate. Elements in this tuple can be None and
+        thus the partial degree may go up to degree.
+        fill:
+        float value of the coefficients to be added.
         """
         for n in range(degree + 1):
             powers = NdPoly._get_tuples(self._Nd, n)
             for p in powers:
-                if p in self:
+                if p in self:   # If term already set, do not touch it
                     continue
-                self[p] = 0
+                max_pdeg_reached = False
+                if max_pdeg is not None:
+                    for i in range(self._Nd):
+                        if max_pdeg[i] is not None:
+                            if p[i] > max_pdeg[i]:
+                                max_pdeg_reached = True
+                                break
+                if not max_pdeg_reached:
+                    self[p] = fill
 
     def derivative(self, orders: tuple):
         """ Partial derivative of the polynomial
@@ -382,14 +396,16 @@ class NdPoly(UserDict):
                 yield (i,) + t
 
     @staticmethod
-    def zero_maxdegree(Nd, degree):
+    def fill_maxdegree(Nd, degree, fill, max_pdeg = None):
         """ Return a polynomial with all powers up to a given degree """
         P = NdPoly.empty(Nd)
-        for n in range(degree + 1):
-            powers = NdPoly._get_tuples(Nd, n)
-            for p in powers:
-                P[p] = 0
+        P.grow_degree(degree, fill, max_pdeg)
         return P
+
+    @staticmethod
+    def zero_maxdegree(Nd, degree, max_pdeg = None):
+        """ Return a polynomial with all powers up to a given degree """
+        return NdPoly.fill_maxdegree(Nd, degree, 0, max_pdeg)
 
     @staticmethod
     def one_maxdegree(Nd, degree):
