@@ -522,6 +522,9 @@ class Diabatizer:
         else :
             self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
         self._Wout = self._Wguess
+        self._fit = [None for _ in range(Nm)]
+        self._rmse = [None for _ in range(Nm)]
+        self._mae = [None for _ in range(Nm)]
         self._x = dict()
         self._energies = dict()
         self._domainMap = {i_matrix : {} for i_matrix in range(Nm)}
@@ -540,6 +543,12 @@ class Diabatizer:
         """ Get number of states """
         return self._Ns
 
+    def n_fitted_points(self, i_matrix):
+        Npts = 0
+        for dom_id, states in self._domainMap[i_matrix].items():
+            Npts += len(self._x[dom_id]) * len(states)
+        return Npts
+
     @property
     def Wguess(self):
         return self._Wguess
@@ -551,6 +560,18 @@ class Diabatizer:
     @property
     def Wout(self):
         return self._Wout
+
+    @property
+    def rmse(self):
+        return self._rmse
+
+    @property
+    def mae(self):
+        return self._mae
+
+    @property
+    def fit(self):
+        return self._fit
 
     def addDomain(self, x: np.ndarray, en: np.ndarray):
         """ Add N points to the database of energies to be fitted
@@ -687,18 +708,33 @@ class Diabatizer:
                     args=(keys, i_matrix, self._Wguess[i_matrix].get_all_x0()),
                     verbose=verbose)
 
+            self._fit[i_matrix] = lsfit
+            self._rmse[i_matrix] = np.sqrt(np.dot(lsfit.fun, lsfit.fun)/self.n_fitted_points(i_matrix))
+            self._mae[i_matrix] = np.sum(np.abs(lsfit.fun))/self.n_fitted_points(i_matrix)
             self._Wout[i_matrix] = self._rebuildDiabatic(
                     keys,
                     lsfit.x,
                     self._Wguess[i_matrix].get_all_x0()
                     )
 
-        return lsfit, self._Wout
+        return self._Wout
 
 
 class SingleDiabatizer(Diabatizer):
     def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
         super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
+
+    @property
+    def rmse(self):
+        return self._rmse[0]
+
+    @property
+    def mae(self):
+        return self._mae[0]
+
+    @property
+    def fit(self):
+        return self._fit[0]
 
     @property
     def Wguess(self):
