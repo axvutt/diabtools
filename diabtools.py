@@ -677,7 +677,7 @@ class Diabatizer:
 
         return W
 
-    def cost_function(self, c, keys, i_matrix, dict_x0):
+    def residual(self, c, keys, i_matrix, dict_x0):
         """ Cost function evaluated for finding the optimal coefficients c
         such that the adiabatic surfaces obtained from diagonalization of the
         diabatic ansatz fit the adiabatic data. """
@@ -716,7 +716,7 @@ class Diabatizer:
             guess_coeffs = list(self._coeffsMapping(self._Wguess[i_matrix]).values())
 
             lsfit = scipy.optimize.least_squares(
-                    self.cost_function,
+                    self.residual,
                     np.array(guess_coeffs),
                     gtol=1e-10,
                     ftol=1e-10,
