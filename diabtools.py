@@ -548,6 +548,7 @@ class Diabatizer:
         self._Ndomains = 0
         self._lastDomainID = 0
         self._autoFit = True
+        self._weight = None
 
     @property
     def Nd(self):
@@ -676,6 +677,64 @@ class Diabatizer:
             W[idx].x0 = x0
 
         return W
+    
+    @property
+    def weight_function(self):
+        return self._weight
+
+    def weights(self):
+        return {domain: self._weight(e) for domain, energies in self._energies.items()}
+
+    def set_custom_weight(self, wfun: callable):
+        """ Set user-defined energy-based weighting function for the residuals """
+        self._weight = wfun
+
+    def set_gauss_weights(self, mu, sigma):
+        """ Set Gaussian weighting function for the residuals
+
+        w = exp(- 1/2 ((y-mu)/sigma)**2 )
+        """
+        self._weight = lambda y: np.exp(-0.5*((y-mu)/sigma)**2)
+    
+    def set_gaussband_weights(self, mu, sigma):
+        """ Set band weighting function for the residuals, with Gaussian tails
+
+        w = 1 if mu[0] < y < mu[1]
+        otherwise:        
+        w = exp(- 1/2 ((y-mu[i])/sigma[i])**2 ), i=0,1 if y<mu[0],mu[1] resp
+        """
+        def gaussband(y, mu_down, mu_up, sigma_down, sigma_up):
+            if y < mu_down:
+                return np.exp(-0.5*((y-mu_down)/sigma_down)**2)
+            elif y > mu_up:
+                return np.exp(-0.5*((y-mu_up)/sigma_up)**2)
+            else:
+                return 1
+        self._weight = lambda y: gaussband(y, mu[0], mu[1], sigma[0], sigma[1])
+
+    def set_exp_weights(self, y0, beta):
+        """ Set exponential decaying weighting function for the residuals
+
+        w = exp(-(y-mu)/beta) if y > mu
+        w = 1   otherwise
+        """
+        self._weight = lambda y: np.exp(-(y-y0)/beta) if y>y0 else 1
+
+    def set_expband_weights(self, y0, beta):
+        """ Set band weighting function for the residuals, with exponential decaying tails
+
+        w = 1 if mu[0] < y < mu[1]
+        w = exp( (y-mu[0])/beta[0]) if y<mu[0]
+        w = exp(-(y-mu[1])/beta[1]) if y<mu[1]
+        """
+        def expband(y, y_down, y_up, beta_down, beta_up):
+            if y < y_down:
+                return np.exp((y-y_down)/beta_down)
+            elif y > y_up:
+                return np.exp(-(y-mu_up)/beta_up)
+            else:
+                return 1
+        self._weight = lambda y: expband(y, y0[0], y0[1], beta[0], beta[1])
 
     def residual(self, c, keys, i_matrix, dict_x0):
         """ Cost function evaluated for finding the optimal coefficients c
@@ -693,7 +752,12 @@ class Diabatizer:
             V, S = adiabatic(W)
             for s in states:
                 f = np.hstack((f, V[:,s]-self._energies[id_domain][:,s]))
-        return f 
+
+        if self._weight is not None:
+            raise(NotImplementedError)
+            return w*f
+        else:
+            return f 
 
     def optimize(self, verbose=0):
         """ Run optimization
