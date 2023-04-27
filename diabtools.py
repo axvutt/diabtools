@@ -759,7 +759,7 @@ class Diabatizer:
         else:
             return f 
 
-    def optimize(self, verbose=0):
+    def optimize(self, verbose=0, max_nfev=None):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -786,7 +786,8 @@ class Diabatizer:
                     ftol=1e-10,
                     xtol=1e-10,
                     args=(keys, i_matrix, self._Wguess[i_matrix].get_all_x0()),
-                    verbose=verbose)
+                    verbose=verbose,
+                    max_nfev=max_nfev)
 
             self._fit[i_matrix] = lsfit
             self._rmse[i_matrix] = np.sqrt(np.dot(lsfit.fun, lsfit.fun)/self.n_fitted_points(i_matrix))
