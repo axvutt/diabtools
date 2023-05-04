@@ -751,7 +751,11 @@ class Diabatizer:
             W = W_iteration(self._x[id_domain])
             V, S = adiabatic(W)
             for s in states:
-                f = np.hstack((f, V[:,s]-self._energies[id_domain][:,s]))
+                Vdata = self._energies[id_domain][:,s]
+                if np.any(np.isnan(Vdata)):
+                    raise(ValueError(f"Found NaN energies in domain {id_domain}, state {s}. "
+                        + "Please deselect from fitting dataset."))
+                f = np.hstack((f, V[:,s]-Vdata))
 
         if self._weight is not None:
             raise(NotImplementedError)

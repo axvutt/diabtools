@@ -705,6 +705,67 @@ class TestDiabatizer:
             self.plot_1d2s_testVSfit(x,W_test_x,V_t,W3x[0])
             self.plot_1d2s_testVSfit(x,W_test_x,V_t,W3x[1])
 
+    def test_2d2s_nanvalues(self, pytestconfig):
+        """ Two states, two dimensions.
+        Raise exception is NaN values are found in fitting dataset.
+        """
+
+        # 0: Prepare coordinates
+        x1, x2, y1, y2 = (-1,1,0,1)
+        Nx, Ny = (21,21)
+        x = np.linspace(x1,x2,Nx)
+        y = np.linspace(y1,y2,Ny)
+
+        X, Y = np.mgrid[x1:x2:Nx*1j, y1:y2:Ny*1j]
+        x0, y0 = (0,1)
+        X = X - x0
+        Y = Y - y0
+
+        # Make separate domains
+        dom1 = X<0
+        dom2 = (X>=0) & (Y<0.5)
+        dom3 = (X>=0) & (Y>=0.5)
+
+        xlist = []
+        for d in [dom1, dom2, dom3]:
+            xlist.append(np.hstack((
+                X[d].flatten()[:,np.newaxis],
+                Y[d].flatten()[:,np.newaxis],
+                )))
+
+        # 1: Make target diabatic surfaces
+        W_test = self.W_infinityCI_2d2s()
+        W_test_vals_list = [W_test(xdom) for xdom in xlist]
+
+        # 2: Make test adiabatic surfaces
+        V_t_list = []
+        for x_dom, W_x_dom in zip(xlist, W_test_vals_list):
+            W11_t = W_x_dom[:,0,0]
+            W22_t = W_x_dom[:,1,1]
+            W21_t = W_x_dom[:,1,0]
+
+            m = 0.5*(W11_t + W22_t)
+            d = 0.5*(W11_t - W22_t)
+            c = W21_t
+
+            V_t = np.zeros((x_dom.shape[0], 2))
+            V_t[:,0] = m - np.sqrt(d**2 + c**2)
+            V_t[:,1] = m + np.sqrt(d**2 + c**2)
+
+            V_t_list.append(V_t)
+        
+        # Invalidate some data, on purpose
+        V_t_list[1][:,1] = np.nan
+
+        # 3: Fit diabatize test adiabatic surfaces
+        W_guess = SymPolyMat.zero_like(W_test)
+
+        test_raises = SingleDiabatizer(2,2,W_guess)
+        test_raises.addDomain(xlist[0], V_t_list[0])
+        raising_domain = test_raises.addDomain(xlist[1], V_t_list[1])
+        test_raises.addDomain(xlist[2], V_t_list[2])
+        with pytest.raises(ValueError, match=f"domain {raising_domain}, state 1"):
+            test_raises.optimize()
 
     def test_3d3s(self):
         pass
