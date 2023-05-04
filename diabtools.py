@@ -463,20 +463,24 @@ class SymPolyMat():
                 W[:,j,i] = W[:,i,j]
         return W
 
-    def __repr__(self): 
+    def __repr__(self):
         s = ""
         for i in range(self._Ns):
             for j in range(i+1):
                 s += f"({i},{j}): {self[i,j].__repr__()}" + "\n"
         return s
-
-    def __str__(self):
+   
+    def __str__(self): 
         s = ""
         for i in range(self._Ns):
             for j in range(i+1):
-                s += f"({i},{j}): {self[i,j].__str__()}" + "\n"
+                s += f"Matrix element ({i},{j})" + "\n"
+                s += f"ORIGIN: {self[i,j].x0}" + "\n"
+                for powers, coeff in self[i,j].items():
+                    s += f"{powers}: {coeff}" + "\n"
+                s += "\n"
         return s
-   
+
     @staticmethod
     def zero(Ns, Nd):
         """ Create zero matrix.
@@ -847,6 +851,13 @@ def adiabatic(W):
 
 ### MAIN ###
 def main(argv) -> int:
+    A = SymPolyMat.eye(2,3)
+    A[0,0].grow_degree(3,0.1)
+    A[1,0].grow_degree(4,0.2)
+    A[1,1].grow_degree(2,0.3)
+    # print(A)
+    d = SingleDiabatizer(2,3,A)
+    print(d.Wguess)
     return 0
 
 if __name__ == "__main__":
