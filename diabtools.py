@@ -4,6 +4,7 @@ from copy import *
 from typing import List, Tuple, Dict, Union
 from collections import UserDict
 import math
+import pickle
 import numpy as np
 import scipy
 import pytest
@@ -480,6 +481,14 @@ class SymPolyMat():
                     s += f"{powers}: {coeff}" + "\n"
                 s += "\n"
         return s
+
+    def write_to_file(self, fout):
+        pickle.dump(self, fout)
+
+    @staticmethod
+    def read_from_file(fin):
+        W = pickle.load(fin)
+        return W
 
     @staticmethod
     def zero(Ns, Nd):
