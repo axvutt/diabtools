@@ -540,6 +540,32 @@ class SymPolyMat():
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
 
+class DampingFunction:
+    """ Abstract base class for damping functions
+    Subclasses should implement __call__"""
+    def __init__(self):
+        pass
+
+class GaussianDamping(DampingFunction):
+    def __init__(self, mu, sigma):
+        super().__init__()
+        self.mu = mu
+        if math.isclose(sigma,0):
+            raise(ValueError("Zero std deviation."))
+        self.sigma = sigma
+
+    def __call__(self,x):
+        return np.exp(-0.5*((x-self.mu)/self.sigma)**2)
+
+class LorentzianDamping(DampingFunction):
+    def __init__(self, x0, gamma):
+        self.x0 = x0
+        if math.isclose(gamma,0):
+            raise(ValueError("Zero gamma width parameter."))
+        self.sigma = gamma
+
+    def __call__(self,x):
+        return 1/(1 + ((x-self.x0)/self.gamma)**2)
 
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None):
