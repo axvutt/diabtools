@@ -561,7 +561,9 @@ class Diabatizer:
         self._Ndomains = 0
         self._lastDomainID = 0
         self._autoFit = True
-        self._weight = None
+        self._weight_coord = lambda x: 1
+        self._weight_energy = lambda x: 1
+        self._switches = None
 
     @property
     def Nd(self):
@@ -676,8 +678,16 @@ class Diabatizer:
         return coeffs_map
 
     def _rebuildDiabatic(self, keys, coeffs, dict_x0) -> SymPolyMat:
-        """ Given keys = list of (i,j,powers) and coeffs = [c1,c2,...]
-        build diabatic matrix W[i,j][powers] = c_n """
+        """ Reconstruct diabatic matrix from flat list of coefficients
+        Parameters:
+        * keys = list of (i,j,powers)
+        * coeffs = [c1,c2,...]
+        * x0 = dict of origins {(i,j): x0, ...}
+        Return:
+        * Diabatic matrix W such that
+          W[i,j][powers] = c_{powers}^(i,j)
+        """
+
         W = SymPolyMat(self._Ns, self._Nd)
 
         # Coefficients
@@ -749,32 +759,46 @@ class Diabatizer:
                 return 1
         self._weight = lambda y: expband(y, y0[0], y0[1], beta[0], beta[1])
 
-    def residual(self, c, keys, i_matrix, dict_x0):
-        """ Cost function evaluated for finding the optimal coefficients c
+    def residual(self, c, keys, x0s, i_matrix):
+        """ Compute residual for finding optimal diabatic anzats coefficients.
+
+        This method is passed to the optimizer in order to find the optimal coefficients c
         such that the adiabatic surfaces obtained from diagonalization of the
-        diabatic ansatz fit the adiabatic data. """
+        diabatic ansatz fit the adiabatic data.
+
+        Parameters:
+        * c : 1d list/numpy array of coefficients
+        * keys : list of keys (i,j,(p1,p2,...)) mapping each of the coefficients
+          to a specific matrix element and monomial key
+        * x0s : dict of (i,j) matrix indices mapped to the corresponding origin
+        * i_matrix : index of the diabatic matrix to fit
+        """
 
         # Construct diabatic matrix by reassigning coefficients to
         # powers of each of the matrix elements
-        W_iteration = self._rebuildDiabatic(keys, c, dict_x0)
+        W = self._rebuildDiabatic(keys, c, x0s)
 
-        # Compute cost function
-        f = np.array([])
+        # Compute residual function
+        residuals = []
         for id_domain, states in self._domainMap[i_matrix].items():
-            W = W_iteration(self._x[id_domain])
-            V, S = adiabatic(W)
+            # Compute W(x) over the domain, diagonalize the obtained point-wise matrices
+            x = self._x[id_domain]
+            Wx = W(x)
+            Vx, Sx = adiabatic(Wx)
+
+            # Retreive data energies and compute (weighted) residuals over the domain
             for s in states:
                 Vdata = self._energies[id_domain][:,s]
                 if np.any(np.isnan(Vdata)):
                     raise(ValueError(f"Found NaN energies in domain {id_domain}, state {s}. "
                         + "Please deselect from fitting dataset."))
-                f = np.hstack((f, V[:,s]-Vdata))
+                residuals.append(
+                        self._weight_coord(x) * self._weight_energy(Vdata) * (Vx[:,s]-Vdata)
+                        )
 
-        if self._weight is not None:
-            raise(NotImplementedError)
-            return w*f
-        else:
-            return f 
+        # Recast into 1d np.ndarray
+        f = np.hstack(tuple(residuals))
+        return f 
 
     def optimize(self, verbose=0, max_nfev=None):
         """ Run optimization
@@ -793,18 +817,20 @@ class Diabatizer:
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
-            keys = tuple(self._coeffsMapping(self._Wguess[i_matrix]).keys())
-            guess_coeffs = list(self._coeffsMapping(self._Wguess[i_matrix]).values())
+            keys2coeffs = self._coeffsMapping(self._Wguess[i_matrix])
+            keys = tuple(keys2coeffs.keys())
+            guess_coeffs = list(keys2coeffs.values())
+            origins = self._Wguess[i_matrix].get_all_x0()
 
             lsfit = scipy.optimize.least_squares(
-                    self.residual,
-                    np.array(guess_coeffs),
-                    gtol=1e-10,
+                    self.residual,          # Residual function
+                    np.array(guess_coeffs), # Initial guess
+                    gtol=1e-10,             # Termination conditions (quality)
                     ftol=1e-10,
                     xtol=1e-10,
-                    args=(keys, i_matrix, self._Wguess[i_matrix].get_all_x0()),
-                    verbose=verbose,
-                    max_nfev=max_nfev)
+                    args=(keys, origins, i_matrix),   # keys and origins of elements of each matrix, reconstructed in residual
+                    verbose=verbose,        # Printing option
+                    max_nfev=max_nfev)      # Termination condition (# iterations)
 
             self._fit[i_matrix] = lsfit
             self._rmse[i_matrix] = np.sqrt(np.dot(lsfit.fun, lsfit.fun)/self.n_fitted_points(i_matrix))
