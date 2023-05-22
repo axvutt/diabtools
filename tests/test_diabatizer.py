@@ -767,5 +767,7 @@ class TestDiabatizer:
         with pytest.raises(ValueError, match=f"domain {raising_domain}, state 1"):
             test_raises.optimize()
 
-    def test_3d3s(self):
-        pass
+    def test_Nm(self):
+        with pytest.raises(ValueError):
+            diab = Diabatizer(3,3,1,[SymPolyMat.zero(3,3), SymPolyMat.zero(3,3)])
+

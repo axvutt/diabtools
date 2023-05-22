@@ -533,11 +533,13 @@ class SymPolyMat():
 
 
 class Diabatizer:
-    def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None):
+    def __init__(self, Ns, Nd, Nm, diab_guess: List[SymPolyMat] = None):
         self._Nd = Nd
         self._Ns = Ns
         self._Nm = Nm
         if diab_guess is not None:
+            if len(diab_guess) != Nm:
+                raise ValueError("Inconsistent number of matrices {} vs number of given guesses {}.".format(Nm, len(diab_guess)))
             self._Wguess = diab_guess
         else :
             self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
