@@ -482,12 +482,14 @@ class SymPolyMat():
                 s += "\n"
         return s
 
-    def write_to_file(self, fout):
-        pickle.dump(self, fout)
+    def write_to_file(self, filename):
+        with open(filename, "wb") as fout:
+            pickle.dump(self, fout)
 
     @staticmethod
-    def read_from_file(fin):
-        W = pickle.load(fin)
+    def read_from_file(filename):
+        with open(filename, "rb") as fin:
+            W = pickle.load(fin)
         return W
 
     @staticmethod
