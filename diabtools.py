@@ -482,12 +482,26 @@ class SymPolyMat():
                 s += "\n"
         return s
 
-    def write_to_file(self, fout):
-        pickle.dump(self, fout)
+    def write_to_txt(self, filename):
+        with open(filename, "w") as fout:
+            fout.write(self.__str__())
 
     @staticmethod
-    def read_from_file(fin):
-        W = pickle.load(fin)
+    def read_from_txt(filename):
+        # with open(filename, "r") as fin:
+        # return W
+        NotImplementedError(
+            "Reading from text file is not possible yet. " \
+            + "Please load from binary file using read_from_file().")
+
+    def write_to_file(self, filename):
+        with open(filename, "wb") as fout:
+            pickle.dump(self, fout)
+
+    @staticmethod
+    def read_from_file(filename):
+        with open(filename, "rb") as fin:
+            W = pickle.load(fin)
         return W
 
     @staticmethod

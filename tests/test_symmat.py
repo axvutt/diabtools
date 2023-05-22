@@ -127,16 +127,23 @@ class TestSymMat:
             for j in range(i+1):
                 Wout[i,j].grow_degree(i+j+1, fill=2*i-j)
 
-        with open("test.spm", "wb") as fout:
-            Wout.write_to_file(fout)
+        filename = "test.spm"
+        Wout.write_to_file(filename)
+        Win = SymPolyMat.read_from_file(filename)
 
-        with open("test.spm", "rb") as fin:
-            Win = SymPolyMat.read_from_file(fin)
-
-        os.remove("test.spm")
+        os.remove(filename)
         for wo, wi in zip(Wout, Win):
             assert wo == wi
             assert np.all(wo.x0 == wi.x0)
         
+    def test_write_txt(self):
+        Wout = SymPolyMat.zero(3,3)
+        for i in range(3):
+            for j in range(i+1):
+                Wout[i,j].grow_degree(i+j+1, fill=2*i-j)
 
+        filename = "test.txt"
+        Wout.write_to_txt(filename)
+        # Win = SymPolyMat.read_from_txt(filename)
+        os.remove(filename)
 
