@@ -1,4 +1,5 @@
 from ..diabtools import *
+import os
 import numpy as np
 
 class TestSymMat:
@@ -119,3 +120,23 @@ class TestSymMat:
             np.all(W[2,2].x0 == np.array([0.2, 0.4])),
             ])
         assert all([W[i,j](W[i,j].x0) == i+j for i in range(3) for j in range(i+1)])
+
+    def test_file_write_read(self):
+        Wout = SymPolyMat.zero(3,3)
+        for i in range(3):
+            for j in range(i+1):
+                Wout[i,j].grow_degree(i+j+1, fill=2*i-j)
+
+        with open("test.spm", "wb") as fout:
+            Wout.write_to_file(fout)
+
+        with open("test.spm", "rb") as fin:
+            Win = SymPolyMat.read_from_file(fin)
+
+        os.remove("test.spm")
+        for wo, wi in zip(Wout, Win):
+            assert wo == wi
+            assert np.all(wo.x0 == wi.x0)
+        
+
+
