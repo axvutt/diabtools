@@ -136,5 +136,14 @@ class TestSymMat:
             assert wo == wi
             assert np.all(wo.x0 == wi.x0)
         
+    def test_write_txt(self):
+        Wout = SymPolyMat.zero(3,3)
+        for i in range(3):
+            for j in range(i+1):
+                Wout[i,j].grow_degree(i+j+1, fill=2*i-j)
 
+        filename = "test.txt"
+        Wout.write_to_txt(filename)
+        # Win = SymPolyMat.read_from_txt(filename)
+        os.remove(filename)
 
