@@ -540,29 +540,141 @@ class SymPolyMat():
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
 
+class DampedSymPolyMat(SymPolyMat):
+    """ Symmetric Matrix of Polynomials, with damping functions """
+    def __init__(self, Ns, Nd):
+        super().__init__(Ns, Nd)
+        self._damp = [lambda x: 1 for i in range(Ns) for j in range(i+1)]
+
+    def set_damping(self, pos, dfun: callable):
+        i, j = pos
+        if j > i :
+            i, j = j, i
+        self._damp[i*(i+1)//2 + j] = dfun
+
+    def get_damping(self, pos) -> callable:
+        i, j = pos
+        if j > i :
+            i, j = j, i
+        return self._damp[i*(i+1)//2 + j]
+
+    def __call__(self, x):
+        x = np.atleast_2d(x)
+        if self._Nd == 1 and x.shape[0] == 1:   # If x is a row, make it a column
+            x = x.T
+        Wx = super().__call__(x)
+        Dx = np.zeros(Wx.shape)
+        for i in range(self._Ns):   # Compute lower triangular part
+            for j in range(i+1):
+                Dx[:,i,j] = self.get_damping((i,j))(x)
+                Dx[:,j,i] = Dx[:,i,j]
+        return Wx * Dx
+
+    @staticmethod
+    def read_from_file(fin):
+        W = pickle.load(fin)
+        return W
+
+    @staticmethod
+    def zero(Ns, Nd):
+        """ Create zero matrix.
+        Each matrix term is a constant monomial with zero coefficient.
+        No damping (matrix of ones).
+        """
+        M = DampedSymPolyMat(Ns,Nd)
+        for i in range(Ns):
+            for j in range(Ns):
+                M[i,j] = NdPoly.zero(Nd)
+        return M
+
+    @staticmethod
+    def zero_like(other: DampedSymPolyMat):
+        """ Create copy with zero polynomial coefficients.
+        Each matrix element is a polynomial with all powers as in other,
+        but whose coefficients are all zero.
+        No damping (matrix of ones).
+        """
+        newmat = deepcopy(other)
+        for wij in newmat:
+            for powers in wij:
+                wij[powers] = 0
+        return newmat
+
+    @staticmethod
+    def eye(Ns, Nd):
+        """ Create identity matrix
+        Each matrix term is a constant monomial with coefficient 1 along
+        the diagonal and 0 otherwise.
+        No damping (matrix of ones).
+        """
+        I = DampedSymPolyMat.zero(Ns, Nd)
+        for i in range(Ns):
+            I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
+        return I
+
+    @staticmethod
+    def eye_like(other: DampedSymPolyMat):
+        """ Create identity matrix, with polynomial coefficients of other.
+        Each matrix element is a polynomial with all powers as in other,
+        but whose coefficients are all zero except along the diagonal where
+        the constant term .
+        Warning: If there is no constant term in a diagonal element of other,
+        this will be added (with a coefficient 1).
+        No damping (matrix of ones).
+        """
+        newmat = DampedSymPolyMat.zero_like(other)
+        for i in range(newmat.Ns):
+            for j in range(i+1):
+                if i == j :
+                    newmat[i,j][newmat[i,j].zeroPower] = 1
+        return newmat
+
 class DampingFunction:
     """ Abstract base class for damping functions
     Subclasses should implement __call__"""
-    def __init__(self):
-        pass
+    def __init__(self,x0):
+        self._x0 = x0
 
-class GaussianDamping(DampingFunction):
-    def __init__(self, mu, sigma):
-        super().__init__()
-        self.mu = mu
+    @property
+    def x0(self):
+        return self._x0
+
+    @x0.setter
+    def x0(self, x0):
+        self._x0 = x0
+
+class Gaussian(DampingFunction):
+    def __init__(self, x0, sigma):
+        super().__init__(x0)
         if math.isclose(sigma,0):
             raise(ValueError("Zero std deviation."))
-        self.sigma = sigma
+        self._sigma = sigma
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, sigma):
+        self._sigma = sigma
 
     def __call__(self,x):
-        return np.exp(-0.5*((x-self.mu)/self.sigma)**2)
+        return np.exp(-0.5*((x-self.x0)/self.sigma)**2)
 
-class LorentzianDamping(DampingFunction):
+class Lorentzian(DampingFunction):
     def __init__(self, x0, gamma):
-        self.x0 = x0
+        super().__init__(x0)
         if math.isclose(gamma,0):
             raise(ValueError("Zero gamma width parameter."))
-        self.sigma = gamma
+        self._gamma = gamma
+
+    @property
+    def gamma(self):
+        return self._gamma
+
+    @gamma.setter
+    def gamma(self, gamma):
+        self._gamma = gamma
 
     def __call__(self,x):
         return 1/(1 + ((x-self.x0)/self.gamma)**2)
