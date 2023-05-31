@@ -708,11 +708,11 @@ class Diabatizer:
         self._mae = [None for _ in range(Nm)]
         self._x = dict()
         self._energies = dict()
-        self._domainMap = {i_matrix : {} for i_matrix in range(Nm)}
-        self._domainIDs = set()
+        self._domain_map = {i_matrix : {} for i_matrix in range(Nm)}
+        self._domain_IDs = set()
         self._Ndomains = 0
-        self._lastDomainID = 0
-        self._autoFit = True
+        self._last_domain_ID = 0
+        self._auto_fit = True
         self._weight_coord = lambda x: 1
         self._weight_energy = lambda x: 1
         self._switches = None
@@ -729,7 +729,7 @@ class Diabatizer:
 
     def n_fitted_points(self, i_matrix):
         Npts = 0
-        for dom_id, states in self._domainMap[i_matrix].items():
+        for dom_id, states in self._domain_map[i_matrix].items():
             Npts += len(self._x[dom_id]) * len(states)
         return Npts
 
@@ -757,7 +757,7 @@ class Diabatizer:
     def fit(self):
         return self._fit
 
-    def addDomain(self, x: np.ndarray, en: np.ndarray):
+    def add_domain(self, x: np.ndarray, en: np.ndarray):
         """ Add N points to the database of energies to be fitted
         
         Parameters
@@ -783,15 +783,15 @@ class Diabatizer:
                 + f"{en.shape[1]} states, expected {self._Ns}."
         assert x.shape[0] == en.shape[0], "Coordinates vs energies "\
                 + "dimensions mismatch."
-        id_domain = self._lastDomainID
-        self._domainIDs.add(id_domain)
+        id_domain = self._last_domain_ID
+        self._domain_IDs.add(id_domain)
         self._x[id_domain] = x
         self._energies[id_domain] = en
         self._Ndomains += 1
-        self._lastDomainID += 1
+        self._last_domain_ID += 1
         return id_domain
 
-    def removeDomain(id_domain):
+    def remove_domain(id_domain):
         self._domains.remove(id_domain)
         self._x.pop(id_domain)
         self._energies.pop(id_domain)
@@ -799,7 +799,7 @@ class Diabatizer:
             self._fitDomains[i_matrix].pop(id_domain)
         self._Ndomains -= 1
 
-    def setFitDomain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
+    def set_fit_domain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
         """ Specify the domain and states that a diabatic potential matrix
         should fit.
         """
@@ -812,14 +812,14 @@ class Diabatizer:
             + f"states {states} is out of range, " \
             + f"should be 0 <= s < {self._Ns}."
 
-        self._domainMap[n_matrix][id_domain] = states
-        self._autoFit = False
+        self._domain_map[n_matrix][id_domain] = states
+        self._auto_fit = False
 
-    def setFitAllDomains(self, n_matrix: int):
-        for idd in self._domainIDs:
-            self.setFitDomain(n_matrix, idd)
+    def set_fit_all_domain(self, n_matrix: int):
+        for idd in self._domain_IDs:
+            self.set_fit_domain(n_matrix, idd)
 
-    def _coeffsMapping(self, W: SymPolyMat) -> dict:
+    def _coeffs_mapping(self, W: SymPolyMat) -> dict:
         """ Create mapping from a given (i,j,powers) to corresponding
         coefficient. """
         coeffs_map = dict()
@@ -829,7 +829,7 @@ class Diabatizer:
                     coeffs_map[(i,j,powers)] = coeff 
         return coeffs_map
 
-    def _rebuildDiabatic(self, keys, coeffs, dict_x0) -> SymPolyMat:
+    def _rebuild_diabatic(self, keys, coeffs, dict_x0) -> SymPolyMat:
         """ Reconstruct diabatic matrix from flat list of coefficients
         Parameters:
         * keys = list of (i,j,powers)
@@ -928,11 +928,11 @@ class Diabatizer:
 
         # Construct diabatic matrix by reassigning coefficients to
         # powers of each of the matrix elements
-        W = self._rebuildDiabatic(keys, c, x0s)
+        W = self._rebuild_diabatic(keys, c, x0s)
 
         # Compute residual function
         residuals = []
-        for id_domain, states in self._domainMap[i_matrix].items():
+        for id_domain, states in self._domain_map[i_matrix].items():
             # Compute W(x) over the domain, diagonalize the obtained point-wise matrices
             x = self._x[id_domain]
             Wx = W(x)
@@ -961,15 +961,15 @@ class Diabatizer:
         # By default, if no specific domain setting is given, use all the data
         # in the database for the fit
         # NB: autoFit is false if Nm > 1
-        if self._autoFit:
-            self.setFitAllDomains(0)
+        if self._auto_fit:
+            self.set_fit_all_domain(0)
 
         # Run a separate optimization for each diabatic matrix
         for i_matrix in range(self._Nm):
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
-            keys2coeffs = self._coeffsMapping(self._Wguess[i_matrix])
+            keys2coeffs = self._coeffs_mapping(self._Wguess[i_matrix])
             keys = tuple(keys2coeffs.keys())
             guess_coeffs = list(keys2coeffs.values())
             origins = self._Wguess[i_matrix].get_all_x0()
@@ -987,7 +987,7 @@ class Diabatizer:
             self._fit[i_matrix] = lsfit
             self._rmse[i_matrix] = np.sqrt(np.dot(lsfit.fun, lsfit.fun)/self.n_fitted_points(i_matrix))
             self._mae[i_matrix] = np.sum(np.abs(lsfit.fun))/self.n_fitted_points(i_matrix)
-            self._Wout[i_matrix] = self._rebuildDiabatic(
+            self._Wout[i_matrix] = self._rebuild_diabatic(
                     keys,
                     lsfit.x,
                     self._Wguess[i_matrix].get_all_x0()

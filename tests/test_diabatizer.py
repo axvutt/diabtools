@@ -35,7 +35,7 @@ class TestDiabatizer:
         # Diabatize
         lif = SingleDiabatizer(2,1)
         lif.Wguess = W
-        lif.addDomain(x,en)
+        lif.add_domain(x,en)
         lif.optimize(verbose=2)
         
         if pytestconfig.getoption("verbose") > 0:
@@ -536,7 +536,7 @@ class TestDiabatizer:
         W_guess = SymPolyMat.zero_like(W_test)
 
         test2d2s = SingleDiabatizer(2,2,W_guess)
-        test2d2s.addDomain(x_data, V_t)
+        test2d2s.add_domain(x_data, V_t)
         test2d2s.optimize()
         W = test2d2s.Wout
         Wx = W(x_data)
@@ -590,7 +590,7 @@ class TestDiabatizer:
         W_guess[2,2][(0,0)] = 1
 
         test2d3s = SingleDiabatizer(3,2,W_guess)
-        test2d3s.addDomain(x_data, V_t)
+        test2d3s.add_domain(x_data, V_t)
         test2d3s.optimize()
         W = test2d3s.Wout
 
@@ -656,7 +656,7 @@ class TestDiabatizer:
         W_guess[1,1][(2,)] = 1
 
         diab = SingleDiabatizer(Ns,Nd,W_guess)
-        diab.addDomain(x, V_t)
+        diab.add_domain(x, V_t)
         diab.optimize()
         W = diab.Wout
 
@@ -671,10 +671,10 @@ class TestDiabatizer:
         W_guess2[1][1,1][(0,)] = 1
         W_guess2[1][1,1][(1,)] = 1
         diab2 = Diabatizer(Ns,Nd,2,W_guess2)
-        diab2.addDomain(x[left], V_t[left,:])
-        diab2.addDomain(x[right], V_t[right,:])
-        diab2.setFitDomain(0,0) # matrix 0 to domain 0, all states
-        diab2.setFitDomain(1,1) # matrix 1 to domain 1, all states
+        diab2.add_domain(x[left], V_t[left,:])
+        diab2.add_domain(x[right], V_t[right,:])
+        diab2.set_fit_domain(0,0) # matrix 0 to domain 0, all states
+        diab2.set_fit_domain(1,1) # matrix 1 to domain 1, all states
         diab2.optimize()
         W2 = diab2.Wout
 
@@ -687,10 +687,10 @@ class TestDiabatizer:
         W_guess3[1][1,1][(1,)] = 1
         W_guess3[1].set_common_x0(1.)
         diab3 = Diabatizer(Ns,Nd,2,W_guess3)
-        diab3.addDomain(x[left], V_t[left,:])
-        diab3.addDomain(x[right], V_t[right,:])
-        diab3.setFitDomain(0,0) # matrix 0 to domain 0, all states
-        diab3.setFitDomain(1,1) # matrix 1 to domain 1, all states
+        diab3.add_domain(x[left], V_t[left,:])
+        diab3.add_domain(x[right], V_t[right,:])
+        diab3.set_fit_domain(0,0) # matrix 0 to domain 0, all states
+        diab3.set_fit_domain(1,1) # matrix 1 to domain 1, all states
         diab3.optimize()
         W3 = diab3.Wout
 
@@ -761,9 +761,9 @@ class TestDiabatizer:
         W_guess = SymPolyMat.zero_like(W_test)
 
         test_raises = SingleDiabatizer(2,2,W_guess)
-        test_raises.addDomain(xlist[0], V_t_list[0])
-        raising_domain = test_raises.addDomain(xlist[1], V_t_list[1])
-        test_raises.addDomain(xlist[2], V_t_list[2])
+        test_raises.add_domain(xlist[0], V_t_list[0])
+        raising_domain = test_raises.add_domain(xlist[1], V_t_list[1])
+        test_raises.add_domain(xlist[2], V_t_list[2])
         with pytest.raises(ValueError, match=f"domain {raising_domain}, state 1"):
             test_raises.optimize()
 
