@@ -704,8 +704,6 @@ class Diabatizer:
             self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
         self._Wout = self._Wguess
         self._fit = [None for _ in range(Nm)]
-        self._rmse = [None for _ in range(Nm)]
-        self._mae = [None for _ in range(Nm)]
         self._x = dict()
         self._energies = dict()
         self._domain_map = {i_matrix : {} for i_matrix in range(Nm)}
@@ -716,6 +714,33 @@ class Diabatizer:
         self._weight_coord = lambda x: 1
         self._weight_energy = lambda x: 1
         self._switches = None
+
+    @property
+    def x(self):
+        """
+        Map from domain id to array of coordinates of the domain.
+        """
+        return self._x
+
+    @property
+    def energies(self):
+        """
+        Map from domain id to n*m array of energies,
+        n being the number of points in the domain and
+        m being the number of states considered in that domain.
+        """
+        return self._energies
+
+    @property
+    def domain_map(self):
+        """
+        Mapping of diabatic matrices to assigned domain and states.
+        Returns a dict<int,<dict<int,tuple<int>>>
+        * First level keys: id of diabatic matrix
+        * Second level keys: id of domain
+        * Second level values: states
+        """
+        return self._domain_map
 
     @property
     def Nd(self):
@@ -745,8 +770,21 @@ class Diabatizer:
     def Wout(self):
         return self._Wout
 
-    @property
     def rmse(self):
+        """ Compute RMSE between reference adiabatic energies and those
+        deduced from of all current diabatic matrices in Wout, within
+        the associated domains """
+        rmse_list = []
+        for im, mat_map in enumerate(self.domain_map):
+            res = []
+            for dom_id, states in mat_map.items():
+                x = self._x[dom_id]
+                Wx = self._Wout[im](x)
+                Vx, Sx = adiabatic(Wx)
+                for s in states:
+                    res.append(self._energies[dom_id][s] - Vx[:,s])
+            rmse = np.sqrt(np.sum(res**2))
+            rmse_list.append(rmse)
         return self._rmse
 
     @property
