@@ -714,6 +714,13 @@ class Diabatizer:
         self._weight_coord = lambda x: 1
         self._weight_energy = lambda x: 1
         self._switches = None
+        self._results = {
+                "success" : False,
+                "rmse" : 0,
+                "mae" : 0,
+                "wrmse" : 0,
+                "wmae" : 0
+                }
 
     @property
     def x(self):
@@ -770,26 +777,62 @@ class Diabatizer:
     def Wout(self):
         return self._Wout
 
+    @property
+    def results(self):
+        """ Return diabatization results dictionnary """
+        return self._results
+
     def rmse(self):
         """ Compute RMSE between reference adiabatic energies and those
         deduced from of all current diabatic matrices in Wout, within
         the associated domains """
         rmse_list = []
-        for im, mat_map in enumerate(self.domain_map):
+        # Compute a RMSE value for each matrix
+        for im in self.domain_map
             res = []
-            for dom_id, states in mat_map.items():
+
+            # Evaluate adiabatic matrices over each domain
+            for dom_id, states in self.domain_map[im].items():  # Get 
                 x = self._x[dom_id]
                 Wx = self._Wout[im](x)
                 Vx, Sx = adiabatic(Wx)
-                for s in states:
-                    res.append(self._energies[dom_id][s] - Vx[:,s])
-            rmse = np.sqrt(np.sum(res**2))
-            rmse_list.append(rmse)
-        return self._rmse
 
-    @property
+                # Compute residual against selected states over the domain
+                for s in states:
+                    res.append(self._energies[dom_id][:,s] - Vx[:,s])
+
+            # Compute RMSE and save
+            res = np.hstack(res)
+            rmse = np.sqrt(np.sum(np.dot(res,res)/self.n_fitted_points(im)))
+            rmse_list.append(rmse)
+
+        return rmse_list
+
     def mae(self):
-        return self._mae
+        """ Compute MAE between reference adiabatic energies and those
+        deduced from of all current diabatic matrices in Wout, within
+        the associated domains """
+        mae_list = []
+        # Compute a MAE value for each matrix
+        for im in self.domain_map:
+            res = []
+
+            # Evaluate adiabatic matrix over each domain
+            for dom_id, states in self.domain_map[im].items():
+                x = self._x[dom_id]
+                Wx = self._Wout[im](x)
+                Vx, Sx = adiabatic(Wx)
+
+                # Compute residual against selected states over the domain
+                for s in states:
+                    res.append(self._energies[dom_id][:,s] - Vx[:,s])
+            
+            # Compute MAE and save
+            res = np.hstack(res)
+            mae = np.sum(np.abs(res)/self.n_fitted_points(im))
+            mae_list.append(mae)
+
+        return mae_list
 
     @property
     def fit(self):
@@ -1023,13 +1066,17 @@ class Diabatizer:
                     max_nfev=max_nfev)      # Termination condition (# iterations)
 
             self._fit[i_matrix] = lsfit
-            self._rmse[i_matrix] = np.sqrt(np.dot(lsfit.fun, lsfit.fun)/self.n_fitted_points(i_matrix))
-            self._mae[i_matrix] = np.sum(np.abs(lsfit.fun))/self.n_fitted_points(i_matrix)
             self._Wout[i_matrix] = self._rebuild_diabatic(
                     keys,
                     lsfit.x,
                     self._Wguess[i_matrix].get_all_x0()
                     )
+
+        self._results["success"] = [self._fit[i].success for i in range(self._Nm)]
+        self._results["rmse"] = self.rmse()
+        self._results["wrmse"] = self.wrmse()
+        self._results["mae"] = self.mae()
+        self._results["wmae"] = self.wmae()
 
         return self._Wout
 
@@ -1038,13 +1085,11 @@ class SingleDiabatizer(Diabatizer):
     def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
         super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
 
-    @property
     def rmse(self):
-        return self._rmse[0]
+        return super().rmse()[0]
 
-    @property
     def mae(self):
-        return self._mae[0]
+        return super().mae()[0]
 
     @property
     def fit(self):

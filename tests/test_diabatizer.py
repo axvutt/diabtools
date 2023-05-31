@@ -542,8 +542,8 @@ class TestDiabatizer:
         Wx = W(x_data)
         Vx, _ = adiabatic(Wx)
         error = np.hstack((Vx[:,0] - V_t[:,0], Vx[:,1] - V_t[:,1]))
-        assert math.isclose(test2d2s.rmse, np.sqrt(np.dot(error, error)/(2*len(x_data))))
-        assert math.isclose(test2d2s.mae, np.sum(np.abs(error))/(2*len(x_data)))
+        assert math.isclose(test2d2s.rmse(), np.sqrt(np.dot(error, error)/(2*len(x_data))))
+        assert math.isclose(test2d2s.mae(), np.sum(np.abs(error))/(2*len(x_data)))
         for w, wt in zip(W,W_test):
             for c, ct in zip(w.coeffs(), wt.coeffs()):
                 assert abs(c-ct) < 1E-10
