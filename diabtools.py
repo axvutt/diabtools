@@ -693,6 +693,7 @@ class Lorentzian(DampingFunction):
     def __call__(self,x):
         return 1/(1 + ((x-self.x0)/self.gamma)**2)
 
+
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None):
         self._Nd = Nd
@@ -711,9 +712,12 @@ class Diabatizer:
         self._Ndomains = 0
         self._last_domain_ID = 0
         self._auto_fit = True
-        self._weight_coord = lambda x: 1
-        self._weight_energy = lambda x: 1
-        self._switches = None
+        self._wfun_coord = None
+        self._wfun_energy = None
+        self._manually_weighted_domains = set()
+        self._weights= dict()
+        self._weights_coord = dict()
+        self._weights_energy = dict()
         self._results = {
                 "success" : False,
                 "rmse" : 0,
@@ -782,58 +786,6 @@ class Diabatizer:
         """ Return diabatization results dictionnary """
         return self._results
 
-    def rmse(self):
-        """ Compute RMSE between reference adiabatic energies and those
-        deduced from of all current diabatic matrices in Wout, within
-        the associated domains """
-        rmse_list = []
-        # Compute a RMSE value for each matrix
-        for im in self.domain_map
-            res = []
-
-            # Evaluate adiabatic matrices over each domain
-            for dom_id, states in self.domain_map[im].items():  # Get 
-                x = self._x[dom_id]
-                Wx = self._Wout[im](x)
-                Vx, Sx = adiabatic(Wx)
-
-                # Compute residual against selected states over the domain
-                for s in states:
-                    res.append(self._energies[dom_id][:,s] - Vx[:,s])
-
-            # Compute RMSE and save
-            res = np.hstack(res)
-            rmse = np.sqrt(np.sum(np.dot(res,res)/self.n_fitted_points(im)))
-            rmse_list.append(rmse)
-
-        return rmse_list
-
-    def mae(self):
-        """ Compute MAE between reference adiabatic energies and those
-        deduced from of all current diabatic matrices in Wout, within
-        the associated domains """
-        mae_list = []
-        # Compute a MAE value for each matrix
-        for im in self.domain_map:
-            res = []
-
-            # Evaluate adiabatic matrix over each domain
-            for dom_id, states in self.domain_map[im].items():
-                x = self._x[dom_id]
-                Wx = self._Wout[im](x)
-                Vx, Sx = adiabatic(Wx)
-
-                # Compute residual against selected states over the domain
-                for s in states:
-                    res.append(self._energies[dom_id][:,s] - Vx[:,s])
-            
-            # Compute MAE and save
-            res = np.hstack(res)
-            mae = np.sum(np.abs(res)/self.n_fitted_points(im))
-            mae_list.append(mae)
-
-        return mae_list
-
     @property
     def fit(self):
         return self._fit
@@ -867,7 +819,9 @@ class Diabatizer:
         id_domain = self._last_domain_ID
         self._domain_IDs.add(id_domain)
         self._x[id_domain] = x
+        self._weights_coord[id_domain] = 1
         self._energies[id_domain] = en
+        self._weights_energy[id_domain] = 1
         self._Ndomains += 1
         self._last_domain_ID += 1
         return id_domain
@@ -934,25 +888,33 @@ class Diabatizer:
 
         return W
     
-    @property
-    def weight_function(self):
-        return self._weight
+    def set_domain_weight(self, id_domain, weight):
+        """ Assign a fixed weight to a coordinate domain. """
+        self._manually_weighted_domains.add(id_domain)
+        self._weights[id_domain] = weight
 
-    def weights(self):
-        return {domain: self._weight(e) for domain, energies in self._energies.items()}
+    def unset_domain_weight(self, id_domain):
+        """ Unassign fixed weight to a coordinate domain. """
+        self._manually_weighted_domains.remove(id_domain)
+        self._weights[id_domain] = 1
 
-    def set_custom_weight(self, wfun: callable):
+    def set_weight_function(self, wfun: callable, apply_to):
         """ Set user-defined energy-based weighting function for the residuals """
-        self._weight = wfun
+        if apply_to == "energy":
+            self._wfun_energy = wfun
+        elif apply_to == "coord":
+            self._wfun_coord = wfun
+        else:
+            raise ValueError("Weighting function must be applied to either \'coord\' or \'energy\'.")
 
-    def set_gauss_weights(self, mu, sigma):
+    def set_gauss_wfun(self, mu, sigma, apply_to):
         """ Set Gaussian weighting function for the residuals
 
         w = exp(- 1/2 ((y-mu)/sigma)**2 )
         """
-        self._weight = lambda y: np.exp(-0.5*((y-mu)/sigma)**2)
+        self.set_weight_function(lambda y: np.exp(-0.5*((y-mu)/sigma)**2), apply_to)
     
-    def set_gaussband_weights(self, mu, sigma):
+    def set_gaussband_wfun(self, mu, sigma, apply_to):
         """ Set band weighting function for the residuals, with Gaussian tails
 
         w = 1 if mu[0] < y < mu[1]
@@ -966,22 +928,22 @@ class Diabatizer:
                 return np.exp(-0.5*((y-mu_up)/sigma_up)**2)
             else:
                 return 1
-        self._weight = lambda y: gaussband(y, mu[0], mu[1], sigma[0], sigma[1])
+        self.set_weight_function(lambda y: gaussband(y, mu[0], mu[1], sigma[0], sigma[1]), apply_to)
 
-    def set_exp_weights(self, y0, beta):
+    def set_exp_wfun(self, x0, beta, apply_to):
         """ Set exponential decaying weighting function for the residuals
 
-        w = exp(-(y-mu)/beta) if y > mu
+        w = exp(-(x-x0)/beta) if x > x0
         w = 1   otherwise
         """
-        self._weight = lambda y: np.exp(-(y-y0)/beta) if y>y0 else 1
+        self.set_weight_function(lambda y: np.exp(-(y-x0)/beta) if y>x0 else 1, apply_to)
 
-    def set_expband_weights(self, y0, beta):
+    def set_expband_wfun(self, x0, beta, apply_to):
         """ Set band weighting function for the residuals, with exponential decaying tails
 
-        w = 1 if mu[0] < y < mu[1]
-        w = exp( (y-mu[0])/beta[0]) if y<mu[0]
-        w = exp(-(y-mu[1])/beta[1]) if y<mu[1]
+        w = 1 if x0[0] < x < x0[1]
+        w = exp( (x-x0[0])/beta[0]) if y<x0[0]
+        w = exp(-(x-x0[1])/beta[1]) if y<x0[1]
         """
         def expband(y, y_down, y_up, beta_down, beta_up):
             if y < y_down:
@@ -990,7 +952,74 @@ class Diabatizer:
                 return np.exp(-(y-mu_up)/beta_up)
             else:
                 return 1
-        self._weight = lambda y: expband(y, y0[0], y0[1], beta[0], beta[1])
+        self.set_weight_function(lambda y: expband(y, x0[0], x0[1], beta[0], beta[1]), apply_to)
+
+    def compute_weights(self):
+        """
+        Precompute weights assigned to points in coordinate space or the corresponding energies
+        if weighting functions have been specified.
+        """
+        # Leave out domains whose weights were specified manually
+        for id_ in self._domain_IDs.difference(self._manually_weighted_domains):
+            # Coordinate-based weights
+            if self._wfun_coord:
+                self._weights_coord[id_] = self._wfun_coord(self._x[id_])
+            # Energy-based weights
+            if self._wfun_energy:
+                self._weights_energy[id_] = self._wfun_energy(self._energies[id_])
+            # Combine
+            self._weights[id_] = self._weights_coord[id_] * self._weights_energy[id_]
+
+
+    def compute_errors(self):
+        """
+        Compute weighted and unweighted RMSE and MAE between
+        reference adiabatic energies and those deduced from of all
+        current diabatic matrices in Wout, within the associated domains
+        """
+        rmse_list = []
+        wrmse_list = []
+        mae_list = []
+        wmae_list = []
+
+        # Compute errors for each matrix
+        for im in self.domain_map:
+            res = []
+            w = []
+
+            # Evaluate adiabatic matrices over each domain
+            for id_, states in self.domain_map[im].items():
+                x = self._x[id_]
+                Wx = self._Wout[im](x)
+                Vx, Sx = adiabatic(Wx)
+
+                # Compute residual against selected states over the domain
+                for s in states:
+                    res.append(self._energies[id_][:,s] - Vx[:,s])
+                    w.append(np.broadcast_to(self._weights[id_], res[-1].shape))
+
+            # Compute errors and save
+            res = np.hstack(res)
+            w = np.hstack(w)
+
+            resabs = np.abs(res)
+            res2 = np.dot(res,res)
+            sumw = np.sum(w)
+
+            rmse = np.sqrt(np.sum(res2)/self.n_fitted_points(im))
+            rmse_list.append(rmse)
+            wrmse = np.sqrt(np.sum(w * res2)/sumw)
+            wrmse_list.append(wrmse)
+            mae = np.sum(resabs)/self.n_fitted_points(im)
+            mae_list.append(mae)
+            wmae = np.sum(w * resabs)/sumw
+            wmae_list.append(wmae)
+
+        self._results["rmse"] = rmse_list
+        self._results["wrmse"] = wrmse_list
+        self._results["mae"] = mae_list
+        self._results["wmae"] = wmae_list
+
 
     def residual(self, c, keys, x0s, i_matrix):
         """ Compute residual for finding optimal diabatic anzats coefficients.
@@ -1014,7 +1043,6 @@ class Diabatizer:
         # Compute residual function
         residuals = []
         for id_domain, states in self._domain_map[i_matrix].items():
-            # Compute W(x) over the domain, diagonalize the obtained point-wise matrices
             x = self._x[id_domain]
             Wx = W(x)
             Vx, Sx = adiabatic(Wx)
@@ -1025,9 +1053,8 @@ class Diabatizer:
                 if np.any(np.isnan(Vdata)):
                     raise(ValueError(f"Found NaN energies in domain {id_domain}, state {s}. "
                         + "Please deselect from fitting dataset."))
-                residuals.append(
-                        self._weight_coord(x) * self._weight_energy(Vdata) * (Vx[:,s]-Vdata)
-                        )
+
+                residuals.append(Vx[:,s]-Vdata)
 
         # Recast into 1d np.ndarray
         f = np.hstack(tuple(residuals))
@@ -1045,6 +1072,9 @@ class Diabatizer:
         if self._auto_fit:
             self.set_fit_all_domain(0)
 
+        # Compute weights associated to points
+        self.compute_weights()
+        
         # Run a separate optimization for each diabatic matrix
         for i_matrix in range(self._Nm):
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
@@ -1073,10 +1103,7 @@ class Diabatizer:
                     )
 
         self._results["success"] = [self._fit[i].success for i in range(self._Nm)]
-        self._results["rmse"] = self.rmse()
-        self._results["wrmse"] = self.wrmse()
-        self._results["mae"] = self.mae()
-        self._results["wmae"] = self.wmae()
+        self.compute_errors()
 
         return self._Wout
 
@@ -1086,10 +1113,10 @@ class SingleDiabatizer(Diabatizer):
         super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
 
     def rmse(self):
-        return super().rmse()[0]
+        return super().results["rmse"][0]
 
     def mae(self):
-        return super().mae()[0]
+        return super().results["mae"][0]
 
     @property
     def fit(self):
