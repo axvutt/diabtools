@@ -718,6 +718,7 @@ class Diabatizer:
         self._weights = dict()
         self._weights_coord = dict()
         self._weights_energy = dict()
+        self._last_residuals = None
         self._nit = 0
         self._print_every = 50
         self._results = {
@@ -1033,9 +1034,38 @@ class Diabatizer:
         self._results["mae"] = mae_list
         self._results["wmae"] = wmae_list
 
+    def _compute_residuals(self, W: SymPolyMat, domains: dict):
+        """
+        Compute residual between reference energies and those deduced from a diabatic potential
+        matrix.
+        Parameters:
+        * W : SymPolymat, diabatic matrix
+        * domains : dict id_ -> (s1, s2, ...), where id_ is a domain id (int) and s1, s2, ...
+          are electronic states.
+        Return:
+        * res : 1D np.ndarray of residuals
+        """
+        residuals = []
+        for id_, states in domains.items():
+            # Compute adiabatic potential from diabatic ansatz
+            x = self._x[id_]
+            Wx = W(x)
+            Vx, Sx = adiabatic(Wx)
+
+            # Retreive data energies and compute (weighted) residuals over the domain
+            for s in states:
+                Vdata = self._energies[id_][:,s]
+                if np.any(np.isnan(Vdata)):
+                    raise(ValueError(f"Found NaN energies in domain {id_}, state {s}. "
+                        + "Please deselect from fitting dataset."))
+
+                residuals.append(Vx[:,s]-Vdata)
+
+        return np.hstack(tuple(residuals))
 
     def _cost(self, c, keys, x0s, domains, weights):
-        """ Compute cost function for finding optimal diabatic anzats coefficients.
+        """
+        Compute cost function for finding optimal diabatic anzats coefficients.
 
         This method is passed to the optimizer in order to find the optimal coefficients c
         such that the adiabatic surfaces obtained from diagonalization of the
@@ -1054,32 +1084,20 @@ class Diabatizer:
         W = self._unravel_SymPolyMat(keys, c, x0s)
 
         # Compute residual function
-        residuals = []
-        for id_, states in domains.items():
-            x = self._x[id_]
-            Wx = W(x)
-            Vx, Sx = adiabatic(Wx)
+        self._last_residuals = self._compute_residuals(W, domains)
 
-            # Retreive data energies and compute (weighted) residuals over the domain
-            for s in states:
-                Vdata = self._energies[id_][:,s]
-                if np.any(np.isnan(Vdata)):
-                    raise(ValueError(f"Found NaN energies in domain {id_}, state {s}. "
-                        + "Please deselect from fitting dataset."))
-
-                residuals.append(Vx[:,s]-Vdata)
-
-        # Recast into 1d np.ndarray
-        residuals = np.hstack(tuple(residuals))
-        return np.sqrt(np.sum(weights * residuals**2)/np.sum(weights))
+        return wRMSE(self._last_residuals, weights)
     
     def _verbose_cost(self, c, keys, x0s, domains, weights):
         """ Wrapper of cost function which also prints out optimization progress. """
-        cost = self._cost(c, keys, x0s, domains, weights)
+        wrmse = self._cost(c, keys, x0s, domains, weights)
         n = self._iteration_increment()
         if n % self._print_every == 0:
-            print("{:<10d} {:12.8e}".format(n,cost))
-        return cost
+            rmse = RMSE(self._last_residuals)
+            mae = MAE(self._last_residuals)
+            wmae = wMAE(self._last_residuals, weights) 
+            print("{:<10d} {:12.8e} {:12.8e} {:12.8e} {:12.8e}".format(n,wrmse,rmse,wmae,mae))
+        return wrmse
 
     def _iteration_increment(self):
         self._nit += 1
@@ -1217,6 +1235,22 @@ def switch_sinsin(x, smin=0, smax=1):
     #     return np.sin(np.pi/2 * np.sin(np.pi/2 * x) )
     return (1 + np.sin(np.pi/2*np.sin(np.pi/2*(2*x - 1))))/2
     
+def RMSE(residuals):
+    """ Compute unweighted Root-Mean-Square Error from residuals. """
+    return np.sqrt(np.sum(residuals**2)/len(residuals))
+
+def wRMSE(residuals, weights):
+    """ Compute weighted Root-Mean-Square Error from residuals and weights. """
+    return np.sqrt(np.sum(weights * residuals**2)/np.sum(weights))
+
+def MAE(residuals):
+    """ Compute unweighted Mean-Average Error from residuals. """
+    return np.sum(np.abs(residuals))/len(residuals)
+
+def wMAE(residuals, weights):
+    """ Compute weighted Mean-Average Error from residuals and weights. """
+    return np.sum(weights * np.abs(residuals))/np.sum(weights)
+
 
 ### MAIN ###
 def main(argv) -> int:
