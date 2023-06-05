@@ -36,7 +36,7 @@ class TestDiabatizer:
         lif = SingleDiabatizer(2,1)
         lif.Wguess = W
         lif.add_domain(x,en)
-        lif.optimize(verbose=2)
+        lif.optimize(verbose=1)
         
         if pytestconfig.getoption("verbose") > 0:
             # Make plot using resulting parameters

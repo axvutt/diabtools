@@ -718,6 +718,8 @@ class Diabatizer:
         self._weights= dict()
         self._weights_coord = dict()
         self._weights_energy = dict()
+        self._nit = 0
+        self._print_every = 50
         self._results = {
                 "success" : False,
                 "rmse" : 0,
@@ -1074,8 +1076,14 @@ class Diabatizer:
     def _verbose_cost(self, c, keys, x0s, domains, weights):
         """ Wrapper of cost function which also prints out optimization progress. """
         cost = self._cost(c, keys, x0s, domains, weights)
-        print("{n:5+d}{c:12.8e}".format(0,cost))
+        n = self._iteration_increment()
+        if n % self._print_every == 0:
+            print("{:<10d} {:12.8e}".format(n,cost))
         return cost
+
+    def _iteration_increment(self):
+        self._nit += 1
+        return self._nit
 
     def optimize(self, verbose=0, maxiter=1000):
         """ Run optimization
@@ -1111,7 +1119,8 @@ class Diabatizer:
                 print("I    " + "COST")
             else:
                 cost_fun = self._cost
-
+            
+            self._nit = 0
             optres = scipy.optimize.minimize(
                     cost_fun,    # Objective function to minimize
                     coeffs,                 # Initial guess
