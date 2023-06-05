@@ -715,7 +715,7 @@ class Diabatizer:
         self._wfun_coord = None
         self._wfun_energy = None
         self._manually_weighted_domains = set()
-        self._weights= dict()
+        self._weights = dict()
         self._weights_coord = dict()
         self._weights_energy = dict()
         self._nit = 0
