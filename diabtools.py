@@ -1032,7 +1032,7 @@ class Diabatizer:
         self._results["wmae"] = wmae_list
 
 
-    def _cost_function(self, c, keys, x0s, domains, weights):
+    def _cost(self, c, keys, x0s, domains, weights):
         """ Compute cost function for finding optimal diabatic anzats coefficients.
 
         This method is passed to the optimizer in order to find the optimal coefficients c
@@ -1070,7 +1070,12 @@ class Diabatizer:
         # Recast into 1d np.ndarray
         residuals = np.hstack(tuple(residuals))
         return np.sqrt(np.sum(weights * residuals**2)/np.sum(weights))
-
+    
+    def _verbose_cost(self, c, keys, x0s, domains, weights):
+        """ Wrapper of cost function which also prints out optimization progress. """
+        cost = self._cost(c, keys, x0s, domains, weights)
+        print("{n:5+d}{c:12.8e}".format(0,cost))
+        return cost
 
     def optimize(self, verbose=0, maxiter=1000):
         """ Run optimization
@@ -1101,8 +1106,14 @@ class Diabatizer:
                     weights.append(self._weights[id_][:,s])
             weights = np.hstack(tuple(weights))
 
+            if verbose == 1:
+                cost_fun = self._verbose_cost
+                print("I    " + "COST")
+            else:
+                cost_fun = self._cost
+
             optres = scipy.optimize.minimize(
-                    self._cost_function,    # Objective function to minimize
+                    cost_fun,    # Objective function to minimize
                     coeffs,                 # Initial guess
                     args=(keys, origins, this_matrix_domains, weights),   # other arguments passed to objective function
                     method="l-bfgs-b",

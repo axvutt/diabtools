@@ -769,3 +769,25 @@ class TestDiabatizer:
 
     def test_3d3s(self):
         pass
+
+    def test_verbose(self):
+        pass
+
+    def test_optimizer(self):
+        options_by_methods = {
+                'Nelder-Mead' : {"disp": True},
+                'Powell'      : {"disp": True},
+                'CG'          : {"disp": True},
+                'BFGS'        : {"disp": True},
+                'Newton-CG'   : {"disp": True},
+                'L-BFGS-B'    : {"disp": True, "iprint": 100},
+                'TNC'         : {"disp": True},
+                'COBYLA'      : {"disp": True, "verbose": 3},
+                'SLSQP'       : {"disp": True, "verbose": 3},
+                'trust-constr': {"disp": True, "verbose": 3},
+                'dogleg'      : {"disp": True, "verbose": 3},
+                'trust-ncg'   : {"disp": True, "verbose": 3},
+                'trust-exact' : {"disp": True, "verbose": 3},
+                'trust-krylov': {},
+                }
+
