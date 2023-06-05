@@ -746,10 +746,10 @@ class Diabatizer:
     def domain_map(self):
         """
         Mapping of diabatic matrices to assigned domain and states.
-        Returns a dict<int,<dict<int,tuple<int>>>
-        * First level keys: id of diabatic matrix
-        * Second level keys: id of domain
-        * Second level values: states
+        Returns a dict of im -> dict of idom -> (s1, s2, ...) with
+        * im: id of diabatic matrix
+        * idom: id of domain
+        * (s1, s2, ...): tuple of states
         """
         return self._domain_map
 
@@ -819,9 +819,9 @@ class Diabatizer:
         id_domain = self._last_domain_ID
         self._domain_IDs.add(id_domain)
         self._x[id_domain] = x
-        self._weights_coord[id_domain] = 1
+        self._weights_coord[id_domain] = np.ones((x.shape[0],1))
         self._energies[id_domain] = en
-        self._weights_energy[id_domain] = 1
+        self._weights_energy[id_domain] = np.ones_like(en)
         self._Ndomains += 1
         self._last_domain_ID += 1
         return id_domain
@@ -830,6 +830,9 @@ class Diabatizer:
         self._domains.remove(id_domain)
         self._x.pop(id_domain)
         self._energies.pop(id_domain)
+        self._weights_coord.pop(id_domain)
+        self._weights_energy.pop(id_domain)
+        self._weights.pop(id_domain)
         for i_matrix in self._Nm:
             self._fitDomains[i_matrix].pop(id_domain)
         self._Ndomains -= 1
@@ -854,17 +857,23 @@ class Diabatizer:
         for idd in self._domain_IDs:
             self.set_fit_domain(n_matrix, idd)
 
-    def _coeffs_mapping(self, W: SymPolyMat) -> dict:
-        """ Create mapping from a given (i,j,powers) to corresponding
-        coefficient. """
-        coeffs_map = dict()
+    def _ravel_SymPolyMat(self, W: SymPolyMat) -> dict:
+        """
+        Return a pair of lists of (i,j,(p1, p2, ...)) and coeffs, with:
+        * i and j are the indices of a matrix element in W
+        * (p1, p2, ...) is the tuple of powers of a monomial in Wij
+        * coeff is the coefficient of the monomial.
+        """
+        keys = []
+        coeffs = []
         for i in range(self._Ns):
             for j in range(i+1):
                 for powers, coeff in W[i,j].items():
-                    coeffs_map[(i,j,powers)] = coeff 
-        return coeffs_map
+                    keys.append((i,j,powers))
+                    coeffs.append(coeff)
+        return keys, np.array(coeffs)
 
-    def _rebuild_diabatic(self, keys, coeffs, dict_x0) -> SymPolyMat:
+    def _unravel_SymPolyMat(self, keys, coeffs, dict_x0) -> SymPolyMat:
         """ Reconstruct diabatic matrix from flat list of coefficients
         Parameters:
         * keys = list of (i,j,powers)
@@ -874,7 +883,6 @@ class Diabatizer:
         * Diabatic matrix W such that
           W[i,j][powers] = c_{powers}^(i,j)
         """
-
         W = SymPolyMat(self._Ns, self._Nd)
 
         # Coefficients
@@ -896,7 +904,10 @@ class Diabatizer:
     def unset_domain_weight(self, id_domain):
         """ Unassign fixed weight to a coordinate domain. """
         self._manually_weighted_domains.remove(id_domain)
-        self._weights[id_domain] = 1
+        domain_shape = self._energies[id_domain].shape
+        self._weights_coord[id_domain] = np.ones((domain_shape[0],1))
+        self._weights_energy[id_domain] = np.ones(domain_shape)
+        self._weights[id_domain] = np.ones(domain_shape)
 
     def set_weight_function(self, wfun: callable, apply_to):
         """ Set user-defined energy-based weighting function for the residuals """
@@ -996,7 +1007,7 @@ class Diabatizer:
                 # Compute residual against selected states over the domain
                 for s in states:
                     res.append(self._energies[id_][:,s] - Vx[:,s])
-                    w.append(np.broadcast_to(self._weights[id_], res[-1].shape))
+                    w.append(np.broadcast_to(self._weights[id_][:,s], res[-1].shape))
 
             # Compute errors and save
             res = np.hstack(res)
@@ -1021,8 +1032,8 @@ class Diabatizer:
         self._results["wmae"] = wmae_list
 
 
-    def residual(self, c, keys, x0s, i_matrix):
-        """ Compute residual for finding optimal diabatic anzats coefficients.
+    def _cost_function(self, c, keys, x0s, domains, weights):
+        """ Compute cost function for finding optimal diabatic anzats coefficients.
 
         This method is passed to the optimizer in order to find the optimal coefficients c
         such that the adiabatic surfaces obtained from diagonalization of the
@@ -1032,35 +1043,36 @@ class Diabatizer:
         * c : 1d list/numpy array of coefficients
         * keys : list of keys (i,j,(p1,p2,...)) mapping each of the coefficients
           to a specific matrix element and monomial key
-        * x0s : dict of (i,j) matrix indices mapped to the corresponding origin
-        * i_matrix : index of the diabatic matrix to fit
+        * x0s : dict of (i,j) -> x0 mapping matrix indices to origin point
+        * domains : dict of id_ -> (s1, s2, ...) mapping domain index to tuple of state indices
         """
 
         # Construct diabatic matrix by reassigning coefficients to
         # powers of each of the matrix elements
-        W = self._rebuild_diabatic(keys, c, x0s)
+        W = self._unravel_SymPolyMat(keys, c, x0s)
 
         # Compute residual function
         residuals = []
-        for id_domain, states in self._domain_map[i_matrix].items():
-            x = self._x[id_domain]
+        for id_, states in domains.items():
+            x = self._x[id_]
             Wx = W(x)
             Vx, Sx = adiabatic(Wx)
 
             # Retreive data energies and compute (weighted) residuals over the domain
             for s in states:
-                Vdata = self._energies[id_domain][:,s]
+                Vdata = self._energies[id_][:,s]
                 if np.any(np.isnan(Vdata)):
-                    raise(ValueError(f"Found NaN energies in domain {id_domain}, state {s}. "
+                    raise(ValueError(f"Found NaN energies in domain {id_}, state {s}. "
                         + "Please deselect from fitting dataset."))
 
                 residuals.append(Vx[:,s]-Vdata)
 
         # Recast into 1d np.ndarray
-        f = np.hstack(tuple(residuals))
-        return f 
+        residuals = np.hstack(tuple(residuals))
+        return np.sqrt(np.sum(weights * residuals**2)/np.sum(weights))
 
-    def optimize(self, verbose=0, max_nfev=None):
+
+    def optimize(self, verbose=0, maxiter=1000):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -1080,31 +1092,39 @@ class Diabatizer:
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
-            keys2coeffs = self._coeffs_mapping(self._Wguess[i_matrix])
-            keys = tuple(keys2coeffs.keys())
-            guess_coeffs = list(keys2coeffs.values())
+            keys, coeffs = self._ravel_SymPolyMat(self._Wguess[i_matrix])
             origins = self._Wguess[i_matrix].get_all_x0()
+            this_matrix_domains = self._domain_map[i_matrix]
+            weights = []
+            for id_, states in this_matrix_domains.items():
+                for s in states:
+                    weights.append(self._weights[id_][:,s])
+            weights = np.hstack(tuple(weights))
 
-            lsfit = scipy.optimize.least_squares(
-                    self.residual,          # Residual function
-                    np.array(guess_coeffs), # Initial guess
-                    gtol=1e-10,             # Termination conditions (quality)
-                    ftol=1e-10,
-                    xtol=1e-10,
-                    args=(keys, origins, i_matrix),   # keys and origins of elements of each matrix, reconstructed in residual
-                    verbose=verbose,        # Printing option
-                    max_nfev=max_nfev)      # Termination condition (# iterations)
-
-            self._fit[i_matrix] = lsfit
-            self._Wout[i_matrix] = self._rebuild_diabatic(
-                    keys,
-                    lsfit.x,
-                    self._Wguess[i_matrix].get_all_x0()
+            optres = scipy.optimize.minimize(
+                    self._cost_function,    # Objective function to minimize
+                    coeffs,                 # Initial guess
+                    args=(keys, origins, this_matrix_domains, weights),   # other arguments passed to objective function
+                    method="l-bfgs-b",
+                    # method="trust-constr",
+                    options={
+                        "gtol": 1e-08,      # Termination conditions (quality)
+                        # "xtol": 1e-08,
+                        "maxiter": maxiter, # Termination condition (# iterations) 
+                        # "verbose": verbose, # Printing option
+                        }
                     )
-
+            
+            self._fit[i_matrix] = optres
+            self._Wout[i_matrix] = self._unravel_SymPolyMat(
+                    keys,
+                    optres.x,
+                    origins
+                    )
+        
         self._results["success"] = [self._fit[i].success for i in range(self._Nm)]
         self.compute_errors()
-
+        
         return self._Wout
 
 
