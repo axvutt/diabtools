@@ -336,6 +336,14 @@ class NdPoly(UserDict):
         else:
             raise(TypeError)
 
+    def coeffs_to_array(self):
+        """ Return monomial coefficients as a 1D np.ndarray."""
+        return np.array(list(self.coeffs()))
+
+    def powers_to_list(self):
+        """ Return list of tuples of powers in each monomial."""
+        return list(self.powers())
+
     @staticmethod
     def empty(Nd):
         """ Return an empty Nd-dimensional polynomial """
@@ -374,20 +382,20 @@ class NdPoly(UserDict):
         tuples of a given length and sum of its integer entries.
 
         Taken from https://stackoverflow.com/questions/29170953
+        
+        Idea:
+        Make 1D tuples from total to zero
+        Prepend index such that the sum of the 2D tuple is total
+        Make 1D tuples from (total-1) to zero
+        Prepend index such that the sum of the 2D tuple is (total-1)
+        ................... (total-2) to zero
+        .................................................. (total-2)
+        For each generated 2D tuple:
+        Prepend index such that the sum of the 3D tuple is total
+        [... continue if 4D ...]
+        Prepend index such that the sum of the 3D tuple is (total-1)
+        etc...
         """
-        # Idea:
-        # Make 1D tuples from total to zero
-        # Prepend index such that the sum of the 2D tuple is total
-        # Make 1D tuples from (total-1) to zero
-        # Prepend index such that the sum of the 2D tuple is (total-1)
-        # ................... (total-2) to zero
-        # .................................................. (total-2)
-        # For each generated 2D tuple:
-        # Prepend index such that the sum of the 3D tuple is total
-        # [... continue if 4D ...]
-        # Prepend index such that the sum of the 3D tuple is (total-1)
-        # etc...
-
         if length == 1:
             yield (total,)
             return
@@ -437,6 +445,67 @@ class SymPolyMat():
         for p in self._polys:
             p.x0 = shift
 
+    def set_x0_by_ij(self, x0_by_ij):
+        """
+        For each specified polynomial in (i,j), set its origin.
+        Parameters:
+        * x0_by_ij : dict (i,j) -> x0, with
+            - (i,j): tuple of integers, the matrix element indices.
+            - x0: 1D list or np.array of length Nd.
+        """
+        for ij, x0 in x0_by_ij.items():
+            self[ij].x0 = x0
+
+    def to_array(self):
+        """
+        Return a 1D array of all the matrix's coefficients.
+        Additionally, return a list of tuples of the corresponding matrix element indices
+        and monomial powers. The latter is of the same length as that of the array of
+        coefficients and can be used for reconstruction of the matrix.
+        Return:
+        * coeffs: 1d array of the coefficients of all the monomials in the matrix.
+        * list of tuples (i,j,(p1, p2, ...)) where:
+            - i and j are the indices of a matrix element
+            - (p1, p2, ...) is a tuple of powers of a monomial in matrix element (i,j)
+        """
+        keys = []
+        coeffs = []
+        for i in range(self._Ns):
+            for j in range(i+1):
+                coeffs.append(self[i,j].coeffs_to_array())
+                keys += [(i,j,powers) for powers in self[i,j].powers_to_list()]
+        return np.hstack(tuple(coeffs)), keys
+
+    @staticmethod
+    def construct(Ns, Nd, keys, coeffs, dict_x0={}) -> SymPolyMat:
+        """ Reconstruct matrix from flat list of coefficients
+        Parameters:
+        * Ns : integer, number of states
+        * Nd : integer, number of dimensions/coordinates
+        * keys: list of (i,j,powers) with
+            - i,j integer matrix element indices
+            - powers = (p1, p2, ...) tuple of integer partial powers of monomial
+        * coeffs: 1D np.array of coefficients [c1,c2,...] of same length of keys
+        * x0 = dict of (i,j) -> x0 with
+            - i,j matrix element indices and
+            - x0 the corresponding origin (list/array of length Nd)
+        Return:
+        * Diabatic matrix W such that
+          W[i,j][powers] = c_{powers}^(i,j)
+          W[i,j].x0 = x0^(i,j)
+        """
+        W = SymPolyMat(Ns, Nd)
+
+        # Coefficients
+        for n, key in enumerate(keys):
+            i, j, powers = key
+            W[i,j][powers] = coeffs[n]
+
+        # Shifts
+        W.set_x0_by_ij(dict_x0)
+
+        return W
+    
     def __iter__(self):
         return self._polys.__iter__()
 
@@ -860,45 +929,6 @@ class Diabatizer:
         for idd in self._domain_IDs:
             self.set_fit_domain(n_matrix, idd)
 
-    def _ravel_SymPolyMat(self, W: SymPolyMat) -> dict:
-        """
-        Return a pair of lists of (i,j,(p1, p2, ...)) and coeffs, with:
-        * i and j are the indices of a matrix element in W
-        * (p1, p2, ...) is the tuple of powers of a monomial in Wij
-        * coeff is the coefficient of the monomial.
-        """
-        keys = []
-        coeffs = []
-        for i in range(self._Ns):
-            for j in range(i+1):
-                for powers, coeff in W[i,j].items():
-                    keys.append((i,j,powers))
-                    coeffs.append(coeff)
-        return keys, np.array(coeffs)
-
-    def _unravel_SymPolyMat(self, keys, coeffs, dict_x0) -> SymPolyMat:
-        """ Reconstruct diabatic matrix from flat list of coefficients
-        Parameters:
-        * keys = list of (i,j,powers)
-        * coeffs = [c1,c2,...]
-        * x0 = dict of origins {(i,j): x0, ...}
-        Return:
-        * Diabatic matrix W such that
-          W[i,j][powers] = c_{powers}^(i,j)
-        """
-        W = SymPolyMat(self._Ns, self._Nd)
-
-        # Coefficients
-        for n, key in enumerate(keys):
-            i, j, powers = key
-            W[i,j][powers] = coeffs[n]
-
-        # Shifts
-        for idx, x0 in dict_x0.items():
-            W[idx].x0 = x0
-
-        return W
-    
     def set_domain_weight(self, id_domain, weight):
         """ Assign a fixed weight to a coordinate domain. """
         self._manually_weighted_domains.add(id_domain)
@@ -1081,7 +1111,7 @@ class Diabatizer:
 
         # Construct diabatic matrix by reassigning coefficients to
         # powers of each of the matrix elements
-        W = self._unravel_SymPolyMat(keys, c, x0s)
+        W = SymPolyMat.construct(self._Ns, self._Nd, keys, c, x0s)
 
         # Compute residual function
         self._last_residuals = self._compute_residuals(W, domains)
@@ -1123,7 +1153,7 @@ class Diabatizer:
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
-            keys, coeffs = self._ravel_SymPolyMat(self._Wguess[i_matrix])
+            coeffs, keys = self._Wguess[i_matrix].to_array()
             origins = self._Wguess[i_matrix].get_all_x0()
             this_matrix_domains = self._domain_map[i_matrix]
             weights = []
@@ -1154,11 +1184,7 @@ class Diabatizer:
                     )
             
             self._fit[i_matrix] = optres
-            self._Wout[i_matrix] = self._unravel_SymPolyMat(
-                    keys,
-                    optres.x,
-                    origins
-                    )
+            self._Wout[i_matrix] = SymPolyMat.construct(self._Ns, self._Nd, keys, optres.x, origins)
         
         self._results["success"] = [self._fit[i].success for i in range(self._Nm)]
         self.compute_errors()
