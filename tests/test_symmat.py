@@ -1,9 +1,9 @@
 from ..diabtools import *
 import os
 import numpy as np
+import pytest
 
 class TestSymMat:
-    testdata = np.linspace(0,1,4)[:,np.newaxis]
     
     def test_Symmetry(self):
         Ns = 2
@@ -77,15 +77,16 @@ class TestSymMat:
         M[1,0] = NdPoly({(0,0,0): 1})
         M[0,2] = NdPoly({(0,0,0): 0.1})
         M[3,0] = NdPoly({(0,0,1): 6.66})
-        X,Y,Z = np.meshgrid(self.testdata, self.testdata, self.testdata)
+        testdata = np.linspace(0,1,4)[:,np.newaxis]
+        X,Y,Z = np.meshgrid(testdata, testdata, testdata)
         data = np.hstack((
             X.flatten()[:,np.newaxis],
             Y.flatten()[:,np.newaxis],
             Z.flatten()[:,np.newaxis],
             ))
         Wx = M(data)
-        assert Wx.shape == (len(self.testdata)**Nd, Ns, Ns)
-        assert all([np.allclose(Wx[i,:,:], Wx[i,:,:].T) for i in range(len(self.testdata))])
+        assert Wx.shape == (len(testdata)**Nd, Ns, Ns)
+        assert all([np.allclose(Wx[i,:,:], Wx[i,:,:].T) for i in range(len(testdata))])
 
     def test_common_shift(self):
         W = SymPolyMat.zero(3,2)
@@ -136,6 +137,7 @@ class TestSymMat:
             assert wo == wi
             assert np.all(wo.x0 == wi.x0)
         
+    @pytest.mark.skip(reason="No way of reading from text.")
     def test_write_txt(self):
         Wout = SymPolyMat.zero(3,3)
         for i in range(3):
@@ -146,4 +148,29 @@ class TestSymMat:
         Wout.write_to_txt(filename)
         # Win = SymPolyMat.read_from_txt(filename)
         os.remove(filename)
+
+    def test_coeffs_and_keys(self):
+        W = SymPolyMat.zero(3,3)
+        for i in range(3):
+            for j in range(i+1):
+                W[i,j].grow_degree(1, fill = i + j)
+        coeffs_array, keys_list = W.coeffs_and_keys()
+        
+        exp_coeffs = []
+        exp_keys = []
+        for i in range(3):
+            for j in range(i+1):
+                # Degree 0 monomial
+                exp_coeffs += [0]     
+                exp_keys += [(i,j,(0,0,0))]
+
+                # Degree 1 monomials (there are 3)
+                exp_coeffs += [i + j for _ in range(3)]
+                exp_keys += [(i,j,(0,0,1)), (i,j,(0,1,0)), (i,j,(1,0,0))]
+
+        exp_coeffs = np.array(exp_coeffs)
+
+        assert np.all(coeffs_array == exp_coeffs)
+        assert all([k == ek for k, ek in zip(keys_list,exp_keys)])
+
 

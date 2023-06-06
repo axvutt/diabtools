@@ -456,7 +456,7 @@ class SymPolyMat():
         for ij, x0 in x0_by_ij.items():
             self[ij].x0 = x0
 
-    def to_array(self):
+    def coeffs_and_keys(self):
         """
         Return a 1D array of all the matrix's coefficients.
         Additionally, return a list of tuples of the corresponding matrix element indices
@@ -1153,7 +1153,7 @@ class Diabatizer:
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
-            coeffs, keys = self._Wguess[i_matrix].to_array()
+            coeffs, keys = self._Wguess[i_matrix].coeffs_and_keys()
             origins = self._Wguess[i_matrix].get_all_x0()
             this_matrix_domains = self._domain_map[i_matrix]
             weights = []
