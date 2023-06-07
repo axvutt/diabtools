@@ -821,7 +821,7 @@ class Diabatizer:
         self._Wout = self._Wguess
         self._x = dict()
         self._energies = dict()
-        self._domain_map = {i_matrix : {} for i_matrix in range(Nm)}
+        self._states_by_domain = [dict() for _ in range(Nm)]
         self._domain_IDs = set()
         self._Ndomains = 0
         self._last_domain_ID = 0
@@ -854,15 +854,14 @@ class Diabatizer:
         return self._energies
 
     @property
-    def domain_map(self):
+    def states_by_domain(self):
         """
-        Mapping of diabatic matrices to assigned domain and states.
-        Returns a dict of im -> dict of idom -> (s1, s2, ...) with
-        * im: id of diabatic matrix
-        * idom: id of domain
-        * (s1, s2, ...): tuple of states
+        Returns list of dicts domain_id -> (s1, s2, ...) with
+        * domain_id : integer, a domain identification number
+        * (s1, s2, ...) : tuple of integers, indicating state numbers
+        Each entry in the list referes to a diabatic matrix included in the model.
         """
-        return self._domain_map
+        return self._states_by_domain
 
     @property
     def Nd(self):
@@ -876,7 +875,7 @@ class Diabatizer:
 
     def n_fitted_points(self, i_matrix):
         Npts = 0
-        for dom_id, states in self._domain_map[i_matrix].items():
+        for dom_id, states in self._states_by_domain[i_matrix].items():
             Npts += len(self._x[dom_id]) * len(states)
         return Npts
 
@@ -957,7 +956,7 @@ class Diabatizer:
             + f"states {states} is out of range, " \
             + f"should be 0 <= s < {self._Ns}."
 
-        self._domain_map[n_matrix][id_domain] = states
+        self._states_by_domain[n_matrix][id_domain] = states
         self._auto_fit = False
 
     def set_fit_all_domain(self, n_matrix: int):
@@ -1062,12 +1061,12 @@ class Diabatizer:
         wmae_list = []
 
         # Compute errors for each matrix
-        for im in self.domain_map:
+        for im in range(self._Nm):
             res = []
             w = []
 
             # Evaluate adiabatic matrices over each domain
-            for id_, states in self.domain_map[im].items():
+            for id_, states in self.states_by_domain[im].items():
                 x = self._x[id_]
                 Wx = self._Wout[im](x)
                 Vx, Sx = adiabatic(Wx)
@@ -1191,7 +1190,7 @@ class Diabatizer:
             # and at the end
             coeffs, keys = self._Wguess[i_matrix].coeffs_and_keys()
             origins = self._Wguess[i_matrix].get_all_x0()
-            this_matrix_domains = self._domain_map[i_matrix]
+            this_matrix_domains = self._states_by_domain[i_matrix]
             weights = []
             for id_, states in this_matrix_domains.items():
                 for s in states:
