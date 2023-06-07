@@ -3,6 +3,7 @@ import sys
 from copy import *
 from typing import List, Tuple, Dict, Union
 from collections import UserDict
+from dataclasses import dataclass
 import math
 import pickle
 import numpy as np
@@ -762,6 +763,51 @@ class Lorentzian(DampingFunction):
     def __call__(self,x):
         return 1/(1 + ((x-self.x0)/self.gamma)**2)
 
+@dataclass
+class Results:
+    success : bool = False
+    coeffs : np.ndarray = np.array([])
+    n_it : int = 0
+    n_fev : int = 0
+    n_jev : int = 0
+    n_hev : int = 0
+    rmse : float = 0.0
+    wrmse : float = 0.0
+    mae : float = 0.0
+    wmae : float = 0.0
+    delta_rmse : float = 0.0
+    delta_wrmse : float = 0.0
+    delta_mae : float = 0.0
+    delta_wmae : float = 0.0
+    residuals : np.ndarray = np.array([])
+    cost : float = 0.0
+    delta_cost : float = 0.0
+
+    def reset(self):
+        self.success = False
+        self.coeffs = np.array([])
+        self.n_it = 0
+        self.rmse = 0.0
+        self.wrmse = 0.0
+        self.mae = 0.0
+        self.wmae = 0.0
+        self.delta_rmse = 0.0
+        self.delta_wrmse = 0.0
+        self.delta_mae = 0.0
+        self.delta_wmae = 0.0
+        self.residual = np.array([])
+        self.cost = 0.0
+        self.delta_cost = 0.0
+
+    def from_OptimizeResult(self, optres : scipy.optimize.OptimizeResult):
+        self.success = optres.success
+        self.coeffs = optres.x
+        self.cost = optres.fun
+        self.n_it = optres.nit
+        self.n_fev = optres.nfev
+        self.n_jev = optres.njev
+        self.success = optres.success
+        
 
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None):
@@ -773,7 +819,6 @@ class Diabatizer:
         else :
             self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
         self._Wout = self._Wguess
-        self._fit = [None for _ in range(Nm)]
         self._x = dict()
         self._energies = dict()
         self._domain_map = {i_matrix : {} for i_matrix in range(Nm)}
@@ -787,16 +832,10 @@ class Diabatizer:
         self._weights = dict()
         self._weights_coord = dict()
         self._weights_energy = dict()
-        self._last_residuals = None
-        self._nit = 0
         self._print_every = 50
-        self._results = {
-                "success" : False,
-                "rmse" : 0,
-                "mae" : 0,
-                "wrmse" : 0,
-                "wmae" : 0
-                }
+        self._n_cost_calls = 0
+        self._last_residuals = np.array([])
+        self._results = [Results() for _ in range(Nm)]
 
     @property
     def x(self):
@@ -857,10 +896,6 @@ class Diabatizer:
     def results(self):
         """ Return diabatization results dictionnary """
         return self._results
-
-    @property
-    def fit(self):
-        return self._fit
 
     def add_domain(self, x: np.ndarray, en: np.ndarray):
         """ Add N points to the database of energies to be fitted
@@ -1051,18 +1086,15 @@ class Diabatizer:
             sumw = np.sum(w)
 
             rmse = np.sqrt(np.sum(res2)/self.n_fitted_points(im))
-            rmse_list.append(rmse)
             wrmse = np.sqrt(np.sum(w * res2)/sumw)
-            wrmse_list.append(wrmse)
             mae = np.sum(resabs)/self.n_fitted_points(im)
-            mae_list.append(mae)
             wmae = np.sum(w * resabs)/sumw
-            wmae_list.append(wmae)
 
-        self._results["rmse"] = rmse_list
-        self._results["wrmse"] = wrmse_list
-        self._results["mae"] = mae_list
-        self._results["wmae"] = wmae_list
+            self._results[im].rmse = rmse
+            self._results[im].wrmse = wrmse
+            self._results[im].mae = mae
+            self._results[im].wmae = wmae
+
 
     def _compute_residuals(self, W: SymPolyMat, domains: dict):
         """
@@ -1113,15 +1145,16 @@ class Diabatizer:
         # powers of each of the matrix elements
         W = SymPolyMat.construct(self._Ns, self._Nd, keys, c, x0s)
 
-        # Compute residual function
-        self._last_residuals = self._compute_residuals(W, domains)
-
-        return wRMSE(self._last_residuals, weights)
+        res = self._compute_residuals(W, domains)
+        # Store for verbose output
+        self._last_residuals = res
+        wrmse = wRMSE(res, weights)
+        return wrmse
     
     def _verbose_cost(self, c, keys, x0s, domains, weights):
         """ Wrapper of cost function which also prints out optimization progress. """
         wrmse = self._cost(c, keys, x0s, domains, weights)
-        n = self._iteration_increment()
+        n = self._increment_cost_calls()
         if n % self._print_every == 0:
             rmse = RMSE(self._last_residuals)
             mae = MAE(self._last_residuals)
@@ -1129,9 +1162,9 @@ class Diabatizer:
             print("{:<10d} {:12.8e} {:12.8e} {:12.8e} {:12.8e}".format(n,wrmse,rmse,wmae,mae))
         return wrmse
 
-    def _iteration_increment(self):
-        self._nit += 1
-        return self._nit
+    def _increment_cost_calls(self):
+        self._n_cost_calls += 1
+        return self._n_cost_calls
 
     def optimize(self, verbose=0, maxiter=1000):
         """ Run optimization
@@ -1150,6 +1183,9 @@ class Diabatizer:
         
         # Run a separate optimization for each diabatic matrix
         for i_matrix in range(self._Nm):
+            self._results[i_matrix].reset()
+            self._n_cost_calls = 0
+
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
@@ -1168,7 +1204,6 @@ class Diabatizer:
             else:
                 cost_fun = self._cost
             
-            self._nit = 0
             optres = scipy.optimize.minimize(
                     cost_fun,    # Objective function to minimize
                     coeffs,                 # Initial guess
@@ -1183,10 +1218,9 @@ class Diabatizer:
                         }
                     )
             
-            self._fit[i_matrix] = optres
             self._Wout[i_matrix] = SymPolyMat.construct(self._Ns, self._Nd, keys, optres.x, origins)
-        
-        self._results["success"] = [self._fit[i].success for i in range(self._Nm)]
+            self._results[i_matrix].from_OptimizeResult(optres)
+
         self.compute_errors()
         
         return self._Wout
@@ -1197,10 +1231,10 @@ class SingleDiabatizer(Diabatizer):
         super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
 
     def rmse(self):
-        return super().results["rmse"][0]
+        return super().results[0].rmse
 
     def mae(self):
-        return super().results["mae"][0]
+        return super().results[0].mae
 
     @property
     def fit(self):
