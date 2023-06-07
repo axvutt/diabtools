@@ -1,7 +1,7 @@
 import json
 from . import diabtools
 
-class NdPolyJSONencoder(json.JSONEncoder):
+class NdPolyJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, diabtools.NdPoly):
             poly = {str(p) : c for p,c in obj.items()}
@@ -15,10 +15,20 @@ class NdPolyJSONencoder(json.JSONEncoder):
             return json.JSONEncoder.default(self, obj)
 
 
-class SymPolyMatJSONencoder(json.JSONEncoder):
+class SymPolyMatJSONEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, diabtools.SymPolyMat):
-            return []
+            Wij = dict()
+            poly_encoder = NdPolyJSONEncoder(indent=self.indent)
+            for i in range(obj.Ns):
+                for j in range(i+1):
+                    Wij[f"({i}, {j})"] = poly_encoder.default(obj[i,j])
+            out = {
+                    "Nd" : obj.Nd,
+                    "Ns" : obj.Ns,
+                    "elements" : Wij
+                    }
+            return out
         else:
             return json.JSONEncoder.default(self, obj)
 
