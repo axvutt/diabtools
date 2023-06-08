@@ -552,6 +552,13 @@ class SymPolyMat():
                 s += "\n"
         return s
 
+    def __eq__(self, other):
+        if self.Nd != other.Nd:
+            return False
+        if self.Ns != other.Ns:
+            return False
+        return all([a == b for a,b in zip(self, other)])
+
     def write_to_txt(self, filename):
         with open(filename, "w") as fout:
             fout.write(self.__str__())
