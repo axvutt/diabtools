@@ -21,18 +21,18 @@ def spm_ex(poly_ex):
 class TestJSON:
     def test_ndpoly_codec(self, poly_ex):
         # Encode to JSON string
-        s = NdPolyJSONEncoder(indent=4).encode(poly_ex)
+        s = DiabJSONEncoder(indent=4).encode(poly_ex)
 
         # Decode from JSON file
-        P = NdPolyJSONDecoder().decode(s)
+        P = DiabJSONDecoder().decode(s)
         assert P == poly_ex
 
     def test_sympolymat_codec(self, spm_ex):
         # Encode to JSON string
-        s = SymPolyMatJSONEncoder(indent=4).encode(spm_ex)
+        s = DiabJSONEncoder(indent=4).encode(spm_ex)
 
         # Decode from JSON file
-        W = SymPolyMatJSONDecoder().decode(s)
+        W = DiabJSONDecoder().decode(s)
         assert W == spm_ex
 
         

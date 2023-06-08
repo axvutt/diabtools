@@ -10,7 +10,7 @@ def str2tuple(s):
     return tuple(map(int,s.strip('()').split(', ')))
 
 
-class NdPolyJSONDecoder(json.JSONDecoder):
+class DiabJSONDecoder(json.JSONDecoder):
     def __init__(self):
         super().__init__(object_hook=self.object_hook)
 
@@ -25,21 +25,11 @@ class NdPolyJSONDecoder(json.JSONDecoder):
 
             return P
 
-        else:
-            return dct
-
-
-class SymPolyMatJSONDecoder(json.JSONDecoder):
-    def __init__(self):
-        super().__init__(object_hook=self.object_hook)
-
-    def object_hook(self, dct):
         if "__SymPolyMat__" in dct:
-            poly_decoder = NdPolyJSONDecoder()
-
             W = diabtools.SymPolyMat(dct["Ns"],dct["Nd"])
+            # Recursively parse object representing NdPoly instance
             for ij, poly in dct["elements"].items():
-                W[str2tuple(ij)] = poly_decoder.object_hook(poly)
+                W[str2tuple(ij)] = self.object_hook(poly)
             
             return W
 
