@@ -11,28 +11,39 @@ def str2tuple(s):
 
 
 class NdPolyJSONDecoder(json.JSONDecoder):
-    def decode(self, s):
-        raw = super().decode(s)
-        P = diabtools.NdPoly.empty(raw["Nd"])
-        P.x0 = raw["x0"]
-        
-        # Get polynomial coefficients
-        for raw_power, coeff in raw["coeffs_by_powers"].items():
-            P[str2tuple(raw_power)] = coeff
+    def __init__(self):
+        super().__init__(object_hook=self.object_hook)
 
-        return P
+    def object_hook(self, dct):
+        if "__NdPoly__" in dct:
+            P = diabtools.NdPoly.empty(dct["Nd"])
+            P.x0 = dct["x0"]
+            
+            # Get polynomial coefficients
+            for raw_power, coeff in dct["coeffs_by_powers"].items():
+                P[str2tuple(raw_power)] = coeff
+
+            return P
+
+        else:
+            return dct
 
 
 class SymPolyMatJSONDecoder(json.JSONDecoder):
-    def decode(self, s):
-        raw = super().decode(s)
-        poly_decoder = NdPolyJSONDecoder()
+    def __init__(self):
+        super().__init__(object_hook=self.object_hook)
 
-        W = diabtools.SymPolyMat(raw["Ns"],raw["Nd"])
-        for ij, poly in raw["elements"].items():
-            pass
-            # W[str2tuple(ij)] = poly_decoder.decode(json_poly)
-        
-        return W
+    def object_hook(self, dct):
+        if "__SymPolyMat__" in dct:
+            poly_decoder = NdPolyJSONDecoder()
+
+            W = diabtools.SymPolyMat(dct["Ns"],dct["Nd"])
+            for ij, poly in dct["elements"].items():
+                W[str2tuple(ij)] = poly_decoder.object_hook(poly)
+            
+            return W
+
+        else:
+            return dct
 
 
