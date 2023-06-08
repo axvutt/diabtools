@@ -6,6 +6,7 @@ class NdPolyJSONEncoder(json.JSONEncoder):
         if isinstance(obj, diabtools.NdPoly):
             poly = {str(p) : c for p,c in obj.items()}
             out = {
+                    "__NdPoly__" : True,
                     "Nd" : obj.Nd,
                     "x0" : obj.x0.tolist(),
                     "coeffs_by_powers" : poly,
@@ -24,6 +25,7 @@ class SymPolyMatJSONEncoder(json.JSONEncoder):
                 for j in range(i+1):
                     Wij[f"({i}, {j})"] = poly_encoder.default(obj[i,j])
             out = {
+                    "__SymPolyMat__" : True,
                     "Nd" : obj.Nd,
                     "Ns" : obj.Ns,
                     "elements" : Wij
