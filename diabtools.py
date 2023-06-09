@@ -23,8 +23,7 @@ class NdPoly(UserDict):
 
     """
 
-    # TODO: make slots work so as to avoid extra attribute declaration
-    # __slots__ = ('_Nd', '_degree', '_x0', '_zeroPower', '_x0')
+    __slots__ = ('_Nd', '_degree', '_x0', '_zeroPower')
 
     def __init__(self, data):
         if len(data) == 0:
@@ -309,7 +308,7 @@ class NdPoly(UserDict):
         return s
 
     def __add__(self, other: Union[int,float, self.__class__]):
-        result = copy(self)
+        result = deepcopy(self)
         if isinstance(other, self.__class__):
             assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
             for powers, coeff in other.items():
@@ -326,7 +325,7 @@ class NdPoly(UserDict):
             raise(TypeError)
 
     def __mul__(self, other: Union[int, float, self.__class__]):
-        result = copy(self)
+        result = deepcopy(self)
         if isinstance(other, self.__class__):
             # assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
             raise(NotImplementedError("Product between NdPoly's not yet implemented"))
