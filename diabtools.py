@@ -345,37 +345,37 @@ class NdPoly(UserDict):
         """ Return list of tuples of powers in each monomial."""
         return list(self.powers())
 
-    @staticmethod
-    def empty(Nd):
+    @classmethod
+    def empty(cls, Nd):
         """ Return an empty Nd-dimensional polynomial """
         # Dirty way: create a contant zero poly and remove the dict item
         powers = tuple([0 for _ in range(Nd)])
-        P = NdPoly.zero(Nd) 
+        P = cls.zero(Nd) 
         del P[powers]
         return P
 
-    @staticmethod
-    def zero(Nd):
+    @classmethod
+    def zero(cls, Nd):
         """ Return a Nd-dimensional polynomial with zero constant term only """
         powers = tuple([0 for _ in range(Nd)])
-        return NdPoly({powers: 0})
+        return cls({powers: 0})
 
-    @staticmethod
-    def one(Nd):
+    @classmethod
+    def one(cls, Nd):
         """ Return a Nd-dimensional polynomial with unit constant term only """
         powers = tuple([0 for _ in range(Nd)])
-        return NdPoly({powers: 1})
+        return cls({powers: 1})
 
-    @staticmethod
-    def zero_like(P: NdPoly):
+    @classmethod
+    def zero_like(cls, P):
         """ Return a polynomial with all powers in P but with zero coefficients """
-        return NdPoly({ p : 0 for p in list(P.powers()) })
+        return cls({ p : 0 for p in list(P.powers()) })
 
-    @staticmethod
-    def one_like(P: NdPoly):
+    @classmethod
+    def one_like(cls, P):
         """ Return a polynomial with all powers in P, with unit constant term
         and all the others with zero coefficient """
-        return NdPoly({ p : 0 for p in list(P.powers()) }) + 1
+        return cls({ p : 0 for p in list(P.powers()) }) + 1
 
     @staticmethod
     def _get_tuples(length, total):
@@ -405,21 +405,21 @@ class NdPoly(UserDict):
             for t in NdPoly._get_tuples(length - 1, total - i):
                 yield (i,) + t
 
-    @staticmethod
-    def fill_maxdegree(Nd, degree, fill, max_pdeg = None):
+    @classmethod
+    def fill_maxdegree(cls, Nd, degree, fill, max_pdeg = None):
         """ Return a polynomial with all powers up to a given degree """
-        P = NdPoly.empty(Nd)
+        P = cls.empty(Nd)
         P.grow_degree(degree, fill, max_pdeg)
         return P
 
-    @staticmethod
-    def zero_maxdegree(Nd, degree, max_pdeg = None):
+    @classmethod
+    def zero_maxdegree(cls, Nd, degree, max_pdeg = None):
         """ Return a polynomial with all powers up to a given degree """
-        return NdPoly.fill_maxdegree(Nd, degree, 0, max_pdeg)
+        return cls.fill_maxdegree(Nd, degree, 0, max_pdeg)
 
-    @staticmethod
-    def one_maxdegree(Nd, degree):
-        return NdPoly.zero_maxdegree(Nd, degree) + 1
+    @classmethod
+    def one_maxdegree(cls, Nd, degree):
+        return cls.zero_maxdegree(Nd, degree) + 1
 
 
 class SymPolyMat():
@@ -432,6 +432,8 @@ class SymPolyMat():
     @classmethod
     def copy(cls, other):
         """ Copy constructor """
+        if not isinstance(other, cls):
+            raise TypeError(f"Copy constructor expecting type {cls}.")
         return deepcopy(other)
 
     @property
@@ -482,8 +484,8 @@ class SymPolyMat():
                 keys += [(i,j,powers) for powers in self[i,j].powers_to_list()]
         return np.hstack(tuple(coeffs)), keys
 
-    @staticmethod
-    def construct(Ns, Nd, keys, coeffs, dict_x0={}) -> SymPolyMat:
+    @classmethod
+    def construct(cls, Ns, Nd, keys, coeffs, dict_x0={}):
         """ Reconstruct matrix from flat list of coefficients
         Parameters:
         * Ns : integer, number of states
@@ -500,7 +502,7 @@ class SymPolyMat():
           W[i,j][powers] = c_{powers}^(i,j)
           W[i,j].x0 = x0^(i,j)
         """
-        W = SymPolyMat(Ns, Nd)
+        W = cls(Ns, Nd)
 
         # Coefficients
         for n, key in enumerate(keys):
@@ -580,48 +582,50 @@ class SymPolyMat():
         with open(filename, "wb") as fout:
             pickle.dump(self, fout)
 
-    @staticmethod
-    def read_from_file(filename):
+    @classmethod
+    def read_from_file(cls, filename):
         with open(filename, "rb") as fin:
             W = pickle.load(fin)
+        if not isinstance(W, cls):
+            raise TypeError(f"File contains object of type {W.type}, expected {cls}.")
         return W
 
-    @staticmethod
-    def zero(Ns, Nd):
+    @classmethod
+    def zero(cls, Ns, Nd):
         """ Create zero matrix.
         Each matrix term is a constant monomial with zero coefficient.
         """
-        M = SymPolyMat(Ns,Nd)
+        M = cls(Ns,Nd)
         for i in range(Ns):
             for j in range(Ns):
                 M[i,j] = NdPoly.zero(Nd)
         return M
 
-    @staticmethod
-    def zero_like(other: SymPolyMat):
+    @classmethod
+    def zero_like(cls, other):
         """ Create copy with zero polynomial coefficients.
         Each matrix element is a polynomial with all powers as in other,
         but whose coefficients are all zero.
         """
-        newmat = deepcopy(other)
+        newmat = cls.copy(other)
         for wij in newmat:
             for powers in wij:
                 wij[powers] = 0
         return newmat
 
-    @staticmethod
-    def eye(Ns, Nd):
+    @classmethod
+    def eye(cls, Ns, Nd):
         """ Create identity matrix
         Each matrix term is a constant monomial with coefficient 1 along
         the diagonal and 0 otherwise.
         """
-        I = SymPolyMat.zero(Ns, Nd)
+        I = cls.zero(Ns, Nd)
         for i in range(Ns):
             I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
         return I
 
-    @staticmethod
-    def eye_like(other: SymPolyMat):
+    @classmethod
+    def eye_like(cls, other):
         """ Create identity matrix, with polynomial coefficients of other.
         Each matrix element is a polynomial with all powers as in other,
         but whose coefficients are all zero except along the diagonal where
@@ -629,7 +633,7 @@ class SymPolyMat():
         Warning: If there is no constant term in a diagonal element of other,
         this will be added (with a coefficient 1).
         """
-        newmat = SymPolyMat.zero_like(other)
+        newmat = cls.zero_like(other)
         for i in range(newmat.Ns):
             for j in range(i+1):
                 if i == j :
