@@ -27,7 +27,7 @@ class DiabJSONDecoder(json.JSONDecoder):
     def parse_SymPolyMat(self, dct):
         W = diabtools.SymPolyMat(dct["Ns"],dct["Nd"])
         for ij, poly in dct["elements"].items():
-            W[str2tuple(ij)] = self.parse_NdPoly(poly)
+            W[str2tuple(ij)] = poly
         
         return W
 
