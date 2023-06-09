@@ -243,8 +243,9 @@ class NdPoly(UserDict):
         return P 
     
     def __repr__(self):
-        s = super().__repr__()
-        s += f", ORIGIN: {self._x0}"
+        s = object.__repr__(self) \
+                + f"(Nd={self._Nd},x0={self._x0},deg={self.degree},ddeg={self.def_degree})\n" \
+                + super().__repr__()
         return s
 
     def __str__(self):
@@ -541,7 +542,7 @@ class SymPolyMat():
         return W
 
     def __repr__(self):
-        s = ""
+        s = object.__repr__(self) + "(Ns={self._Ns},Nd={self._Nd})\n"
         for i in range(self._Ns):
             for j in range(i+1):
                 s += f"({i},{j}): {self[i,j].__repr__()}" + "\n"
