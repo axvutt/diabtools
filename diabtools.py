@@ -429,6 +429,11 @@ class SymPolyMat():
         self._Nd = Nd
         self._polys = [ NdPoly.empty(Nd) for i in range(Ns) for j in range(i+1) ]
 
+    @classmethod
+    def copy(cls, other):
+        """ Copy constructor """
+        return deepcopy(other)
+
     @property
     def Ns(self):
         return self._Ns
@@ -636,6 +641,20 @@ class DampedSymPolyMat(SymPolyMat):
     def __init__(self, Ns, Nd):
         super().__init__(Ns, Nd)
         self._damp = [lambda x: 1 for i in range(Ns) for j in range(i+1)]
+
+    @classmethod
+    def from_SymPolyMat(cls, other: SymPolyMat):
+        """
+        Construct DampedSymPolyMat from preexisting SymPolyMat.
+        Copy the SymPolyMat members and set no damping of off-diagonal
+        elements.
+        
+        NB: Since no true copy constructor exists in Python, we'll do the dirty
+        trick of copying all private attributes, manually.
+        """
+        DW = DampedSymPolyMat(other.Ns, other.Nd)
+        DW._polys = deepcopy(other._polys)
+        return DW
 
     def set_damping(self, pos, dfun: callable):
         i, j = pos
