@@ -32,12 +32,13 @@ class DiabJSONDecoder(json.JSONDecoder):
         return W
 
     def parse_DampedSymPolyMat(self, dct):
+        return dct
         # DW = diabtools.DampedSymPolyMat.from_base(
         #         self.parse_SymPolyMat(dct)
         #         )
         # for ij, damp in dct["damping"].items():
         #     DW.set_damping(str2tuple(ij), self.parse_DampingFunction(damp))
-        return DW
+        # return DW
 
     def object_hook(self, dct):
         if "__NdPoly__" in dct:
