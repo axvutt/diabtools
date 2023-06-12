@@ -21,7 +21,7 @@ class DiabJSONEncoder(json.JSONEncoder):
                 "__SymPolyMat__" : True,
                 "Nd" : obj.Nd,
                 "Ns" : obj.Ns,
-                "elements" : Wij
+                "elements" : Wij,
                 }
         return out
 
@@ -37,7 +37,7 @@ class DiabJSONEncoder(json.JSONEncoder):
     def encode_Damping(self, obj: diabtools.DampingFunction):
         out = {
                 "__DampingFunction__": True,
-                "x0": obj.x0
+                "x0": obj.x0,
                 }
         return out
 
@@ -45,7 +45,7 @@ class DiabJSONEncoder(json.JSONEncoder):
         out = self.encode_Damping(obj)
         out.update({
                 "__Gaussian__": True,
-                "sigma" : obj.sigma
+                "sigma" : obj.sigma,
                 })
         return out
 
@@ -53,59 +53,59 @@ class DiabJSONEncoder(json.JSONEncoder):
         out = self.encode_Damping(obj)
         out.update({
                 "__Lorentzian__": True,
-                "gamma" : obj.gamma
+                "gamma" : obj.gamma,
                 })
         return out
 
     def encode_Results(self, obj: diabtools.Results):
         out = {
                 "__Results__" : True,
-                "success"     : obj.success
-                "coeffs"      : obj.coeffs
-                "n_it"        : obj.n_it
-                "n_fev"       : obj.n_fev
-                "n_jev"       : obj.n_jev
-                "n_hev"       : obj.n_hev
-                "rmse"        : obj.rmse
-                "wrmse"       : obj.wrmse
-                "mae"         : obj.mae
-                "wmae"        : obj.wmae
-                "delta_rmse"  : obj.delta_rmse
-                "delta_wrmse" : obj.delta_wrmse
-                "delta_mae"   : obj.delta_mae
-                "delta_wmae"  : obj.delta_wmae
-                "residuals"   : obj.residuals
-                "cost"        : obj.cost
-                "delta_cost"  : obj.delta_cost
+                "success"     : obj.success,
+                "coeffs"      : obj.coeffs.tolist(),
+                "n_it"        : obj.n_it,
+                "n_fev"       : obj.n_fev,
+                "n_jev"       : obj.n_jev,
+                "n_hev"       : obj.n_hev,
+                "rmse"        : obj.rmse,
+                "wrmse"       : obj.wrmse,
+                "mae"         : obj.mae,
+                "wmae"        : obj.wmae,
+                "delta_rmse"  : obj.delta_rmse,
+                "delta_wrmse" : obj.delta_wrmse,
+                "delta_mae"   : obj.delta_mae,
+                "delta_wmae"  : obj.delta_wmae,
+                "residuals"   : obj.residuals.tolist(),
+                "cost"        : obj.cost,
+                "delta_cost"  : obj.delta_cost,
                 }
         return out
 
     def encode_Diabatizer(self, obj: diabtools.Diabatizer):
         out = {
                 "__Diabatizer__" : True,
-                "Nd"                        : obj._Nd
-                "Ns"                        : obj._Ns
-                "Nm"                        : obj._Nm
-                "Wguess"                    : [self.default(Wg) for Wg in range(obj._Wguess)]
-                "Wout"                      : [self.default(Wo) for Wo in range(obj._Wout)]
-                "x"                         : {id_ : x.tolist() for id_,x in obj._x.items()}
-                "energies"                  : {id_ : e.tolist() for id_,e in obj._e.items()}
+                "Nd"                        : obj._Nd,
+                "Ns"                        : obj._Ns,
+                "Nm"                        : obj._Nm,
+                "Wguess"                    : [self.default(Wg) for Wg in obj._Wguess],
+                "Wout"                      : [self.default(Wo) for Wo in obj._Wout],
+                "x"                         : {id_ : x.tolist() for id_,x in obj._x.items()},
+                "energies"                  : {id_ : e.tolist() for id_,e in obj._energies.items()},
                 "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()} \
-                                                    for dct in obj._states_by_domain]
-                "domain_IDs"                : list(obj._domain_IDs)
-                "Ndomains"                  : obj._Ndomains
-                "last_domain_ID"            : obj._last_domain_ID
-                "auto_fit"                  : obj._auto_fit
-                "wfun_coord"                : None # obj._wfun_coord
-                "wfun_energy"               : None # obj._wfun_energy
-                "manually_weighted_domains" : list(obj._manually_weighted_domains)
-                "weights"                   : [w.tolist() for w in obj._weights]
-                "weights_coord"             : [w.tolist() for w in obj._weights_coord]
-                "weights_energy"            : [w.tolist() for w in obj._weights_energy]
-                "print_every"               : obj._print_every
-                "n_cost_calls"              : obj._n_cost_calls
-                "last_residuals"            : obj._last_residuals.tolist()
-                "results"                   : [self.default(r) for r in obj.results]
+                                                    for dct in obj._states_by_domain],
+                "domain_IDs"                : list(obj._domain_IDs),
+                "Ndomains"                  : obj._Ndomains,
+                "last_domain_ID"            : obj._last_domain_ID,
+                "auto_fit"                  : obj._auto_fit,
+                "wfun_coord"                : None, # obj._wfun_coord,
+                "wfun_energy"               : None, # obj._wfun_energy,
+                "manually_weighted_domains" : list(obj._manually_weighted_domains),
+                "weights"                   : [w.tolist() for w in obj._weights],
+                "weights_coord"             : [w.tolist() for w in obj._weights_coord],
+                "weights_energy"            : [w.tolist() for w in obj._weights_energy],
+                "print_every"               : obj._print_every,
+                "n_cost_calls"              : obj._n_cost_calls,
+                "last_residuals"            : obj._last_residuals.tolist(),
+                "results"                   : [self.default(r) for r in obj.results],
                 }
         return out
 

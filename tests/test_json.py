@@ -17,7 +17,12 @@ def spm_ex(poly_ex):
             M[i,j] = poly_ex
     return M
 
-@pytest.mark.usefixtures('poly_ex','spm_ex')
+@pytest.fixture
+def diab_ex(spm_ex):
+    diabatizer = Diabatizer(3,3,2, [spm_ex, spm_ex])
+    return diabatizer
+
+@pytest.mark.usefixtures('poly_ex','spm_ex','diab_ex')
 class TestJSON:
     def test_ndpoly_codec(self, poly_ex):
         # Encode to JSON string
@@ -35,4 +40,7 @@ class TestJSON:
         W = DiabJSONDecoder().decode(s)
         assert W == spm_ex
 
-        
+    def test_diabatizer_codec(self,diab_ex):
+        s = DiabJSONEncoder(indent=4).encode(diab_ex)
+        with open("diabtest.json", "w") as f:
+            f.write(s)
