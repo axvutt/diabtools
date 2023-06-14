@@ -4,8 +4,10 @@ from copy import *
 from typing import List, Tuple, Dict, Union
 from collections import UserDict
 from dataclasses import dataclass
+from abc import ABC, abstractmethod 
 import math
 import pickle
+import json
 import numpy as np
 import scipy
 import pytest
@@ -421,6 +423,28 @@ class NdPoly(UserDict):
     def one_maxdegree(cls, Nd, degree):
         return cls.zero_maxdegree(Nd, degree) + 1
 
+    def to_JSON_dict(self) -> dict:
+        jsondct = {
+                "__NdPoly__" : True,
+                "Nd" : self.Nd,
+                "x0" : self.x0.tolist(),
+                "coeffs_by_powers" : {str(p) : c for p,c in self.items()},
+                }
+        return jsondct
+        
+    @staticmethod
+    def from_JSON_dict(dct) -> NdPoly:
+        if "__NdPoly__" not in dct:
+            raise KeyError("The JSON object is not a NdPoly.")
+
+        P = NdPoly.empty(dct["Nd"])
+        P.x0 = dct["x0"]
+        
+        # Get polynomial coefficients
+        for raw_power, coeff in dct["coeffs_by_powers"].items():
+            P[_str2tuple(raw_power)] = coeff
+
+        return P
 
 class SymPolyMat():
     """ Real symmetric matrix of multivariate polynomial functions """
@@ -640,6 +664,36 @@ class SymPolyMat():
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
 
+    def save_to_JSON(self, fname) -> None:
+        with open(fname, "w") as f:
+            json.dump(f, self.to_JSON_dict())
+
+    def to_JSON_dict(self) -> dict:
+        dct = {
+                "__SymPolyMat__" : True,
+                "Nd" : self.Nd,
+                "Ns" : self.Ns,
+                "elements" : {f"({i}, {j})": self[i,j].to_JSON_dict()}
+                }
+        return dct
+        
+    @classmethod
+    def load_from_JSON(cls, fname) -> cls:
+        with open(fname, "r") as f:
+            M = cls.from_JSON_dict(json.load(f))
+        return M
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__SymPolyMat__" not in dct:
+            raise KeyError("The JSON object is not a SymPolyMat.")
+
+        M = SymPolyMat(dct["Ns"],dct["Nd"])
+        for ij, poly in dct["elements"].items():
+            M[str2tuple(ij)] = NdPoly.from_JSON_dict(poly)
+
+        return M
+
 class DampedSymPolyMat(SymPolyMat):
     """ Symmetric Matrix of Polynomials, with damping functions """
     def __init__(self, Ns, Nd):
@@ -743,10 +797,39 @@ class DampedSymPolyMat(SymPolyMat):
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
 
-class DampingFunction:
+    def to_JSON_dict(self) -> dict:
+        dct = super(self).to_JSON_dict()
+        dct.update({
+                "__DampedSymPolyMat__" : True,
+                "damping" : {f"({i}, {j})": self.get_damping(i,j).to_JSON_dict() \
+                        for i in range(self._Ns) for j in range(i+1)}
+                })
+        return dct
+        
+    @staticmethod
+    def from_JSON_dict(dct) -> cls:
+        if "__DampedSymPolyMat__" not in dct:
+            raise KeyError("The JSON object is not a DampedSymPolyMat.")
+
+        M = super().__init__(dct["Ns"],dct["Nd"])
+        M = DampedSymPolyMat.from_SymPolyMat(M)
+        for ij, dfdct in dct["damping"].items():
+            if "__Gaussian__" in dfdct:
+                df = Gaussian.from_JSON_dict(dfdct)
+            elif "__Lorentzian__" in dfdct:
+                df = Lorentzian.from_JSON_dict(dfdct)
+            else:
+                df = None
+                Warning("Unknown damping function, setting to None")
+            M.set_damping(_str2tuple(ij), df)
+
+        return M
+
+
+class DampingFunction(ABC):
     """ Abstract base class for damping functions
     Subclasses should implement __call__"""
-    def __init__(self,x0):
+    def __init__(self, x0):
         self._x0 = x0
 
     @property
@@ -757,11 +840,23 @@ class DampingFunction:
     def x0(self, x0):
         self._x0 = x0
 
+    @abstractmethod
+    def __call__(self, x):
+        pass
+
+    def to_JSON_dict(self):
+        return {"__DampingFunction__": True, "x0": self._x0}
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        return None
+
+
 class Gaussian(DampingFunction):
     def __init__(self, x0, sigma):
         super().__init__(x0)
         if math.isclose(sigma,0):
-            raise(ValueError("Zero std deviation."))
+            raise ValueError("Zero std deviation.")
         self._sigma = sigma
 
     @property
@@ -775,11 +870,24 @@ class Gaussian(DampingFunction):
     def __call__(self,x):
         return np.exp(-0.5*((x-self.x0)/self.sigma)**2)
 
+    def to_JSON_dict(self):
+        dct = super().to_JSON_dict()
+        dct.update({"__Gaussian__": True, "sigma": self._sigma})
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__Gaussian__" not in dct:
+            raise KeyError("The JSON object is not a Gaussian.")
+
+        return Gaussian(dct["x0"], dct["sigma"])
+
+
 class Lorentzian(DampingFunction):
     def __init__(self, x0, gamma):
         super().__init__(x0)
         if math.isclose(gamma,0):
-            raise(ValueError("Zero gamma width parameter."))
+            raise ValueError("Zero gamma width parameter.")
         self._gamma = gamma
 
     @property
@@ -792,6 +900,18 @@ class Lorentzian(DampingFunction):
 
     def __call__(self,x):
         return 1/(1 + ((x-self.x0)/self.gamma)**2)
+
+    def to_JSON_dict(self):
+        dct = super().to_JSON_dict()
+        dct.update({"__Lorentzian__": True, "gamma": self._gamma})
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__Lorentzian__" not in dct:
+            raise KeyError("The JSON object is not a Lorentzian.")
+
+        return Lorentzian(dct["x0"], dct["gamma"])
 
 @dataclass
 class Results:
@@ -837,7 +957,54 @@ class Results:
         self.n_fev = optres.nfev
         self.n_jev = optres.njev
         self.success = optres.success
-        
+    
+    def to_JSON_dict(self):
+        out = {
+                "__Results__" : True,
+                "success"     : self.success,
+                "coeffs"      : self.coeffs.tolist(),
+                "n_it"        : self.n_it,
+                "n_fev"       : self.n_fev,
+                "n_jev"       : self.n_jev,
+                "n_hev"       : self.n_hev,
+                "rmse"        : self.rmse,
+                "wrmse"       : self.wrmse,
+                "mae"         : self.mae,
+                "wmae"        : self.wmae,
+                "delta_rmse"  : self.delta_rmse,
+                "delta_wrmse" : self.delta_wrmse,
+                "delta_mae"   : self.delta_mae,
+                "delta_wmae"  : self.delta_wmae,
+                "residuals"   : self.residuals.tolist(),
+                "cost"        : self.cost,
+                "delta_cost"  : self.delta_cost,
+                }
+        return out
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__Results__" not in dct:
+            raise KeyError("The JSON object is not a Results object.")
+
+        return Results(
+                success     = dct["success"    ],
+                coeffs      = np.array(dct["coeffs"     ]),
+                n_it        = dct["n_it"       ],
+                n_fev       = dct["n_fev"      ],
+                n_jev       = dct["n_jev"      ],
+                n_hev       = dct["n_hev"      ],
+                rmse        = dct["rmse"       ],
+                wrmse       = dct["wrmse"      ],
+                mae         = dct["mae"        ],
+                wmae        = dct["wmae"       ],
+                delta_rmse  = dct["delta_rmse" ],
+                delta_wrmse = dct["delta_wrmse"],
+                delta_mae   = dct["delta_mae"  ],
+                delta_wmae  = dct["delta_wmae" ],
+                residuals   = np.array(dct["residuals"  ]),
+                cost        = dct["cost"       ],
+                delta_cost  = dct["delta_cost" ],
+                )
 
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm = 1, diab_guess: List[SymPolyMat] = None):
@@ -1254,6 +1421,84 @@ class Diabatizer:
         
         return self._Wout
 
+    def to_JSON_dict(self):
+        dct = {
+                "__Diabatizer__" : True,
+                "Nd"                        : self._Nd,
+                "Ns"                        : self._Ns,
+                "Nm"                        : self._Nm,
+                "Wguess"                    : [Wg.to_JSON_dict() for Wg in self._Wguess],
+                "Wout"                      : [Wo.to_JSON_dict() for Wo in self._Wout],
+                "x"                         : {id_ : x.tolist() for id_,x in self._x.items()},
+                "energies"                  : {id_ : e.tolist() for id_,e in self._energies.items()},
+                "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()} \
+                                                    for dct in self._states_by_domain],
+                "domain_IDs"                : list(self._domain_IDs),
+                "Ndomains"                  : self._Ndomains,
+                "last_domain_ID"            : self._last_domain_ID,
+                "auto_fit"                  : self._auto_fit,
+                "wfun_coord"                : None, # self._wfun_coord,
+                "wfun_energy"               : None, # self._wfun_energy,
+                "manually_weighted_domains" : list(self._manually_weighted_domains),
+                "weights"                   : [w.tolist() for w in self._weights],
+                "weights_coord"             : [w.tolist() for w in self._weights_coord],
+                "weights_energy"            : [w.tolist() for w in self._weights_energy],
+                "print_every"               : self._print_every,
+                "n_cost_calls"              : self._n_cost_calls,
+                "last_residuals"            : self._last_residuals.tolist(),
+                "results"                   : [self.default(r) for r in self.results],
+                }
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        """
+        Deserialize Diabatizer in an intrusive way, i.e. setting some private members manually.
+        ! This may become dangerous if the structure of the Diabatizer class change.
+        """
+        Wguess = []
+        for Wg_dict in dct["Wguess"]:
+            if "__DampedSymPolyMat__" in Wg_dict:
+                Wguess.append(DampedSymPolyMat.from_JSON_dict(Wg_dict))
+                continue
+            Wguess.append(SymPolyMat.from_JSON_dict(Wg_dict))
+
+        Wout = []
+        for Wo_dict in dct["Wout"]:
+            if "__DampedSymPolyMat__" in Wo_dict:
+                Wout.append(DampedSymPolyMat.from_JSON_dict(Wo_dict))
+                continue
+            Wout.append(SymPolyMat.from_JSON_dict(Wo_dict))
+
+        diab = Diabatizer(dct["Nd"], dct["Ns"], dct["Nm"], Wguess)
+        diab._Wguess = Wguess
+        diab._Wout = Wout
+        diab._x = {id_: np.array(xlist) for id_, xlist in dct["x"].items()}
+        diab._energies = {
+                id_: np.array(elist) \
+                        for id_, elist in dct["energies"].items()
+                        }
+        diab._states_by_domain = [
+                {
+                    id_: _str2tuple(str_states) \
+                        for id_, str_states in sbd_dct.items()
+                } for sbd_dct in dct["state_by_domain"]
+                ]
+        diab._domain_IDs = set(dct["domain_IDs"])
+        diab._N_domains = dct["N_domains"]
+        diab._last_domain_ID = dct["last_domain_ID"]
+        diab._auto_fit = dct["auto_fit"]
+        diab._wfun_coord = None
+        diab._wfun_energy = None
+        diab._manually_weighted_domains = set(dct["manually_weighted_domains"])
+        diab._weights = {id_: np.array(w) for id_, w in dct["weights"].items()}
+        diab._weights_coord = {id_: np.array(w) for id_, w in dct["weights_coord"].items()}
+        diab._weights_energy = {id_: np.array(w) for id_, w in dct["weights_energy"].items()}
+        diab._print_every = dct["print_every"]
+        diab._n_cost_calls = dct["n_cost_calls"]
+        diab._last_residuals = np.array(dct["last_residual"])
+        diab._results = [Results.from_JSON_dict(rdct) for rdct in dct["results"]]
+
 
 class SingleDiabatizer(Diabatizer):
     def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
@@ -1282,6 +1527,46 @@ class SingleDiabatizer(Diabatizer):
         return self._Wout[0]
 
 ### NON-CLASS FUNCTIONS ###
+
+def _str2tuple(s):
+    """
+    Convert string to original tuple of integers.
+    Assuming that the string was obtained with str(t),
+    t being the tuple.
+    """
+    return tuple(map(int,s.strip('()').split(', ')))
+
+# Side note for C++ freaks: those following JSON functions would be easy to
+# translate into template functions
+def save_to_JSON(obj, fname):
+    with open(fname, "w") as f:
+        json.dump(f, obj.to_JSON_dict())
+
+def load_from_JSON(fname):
+    with open(fname, "r") as f:
+        dct = json.load(f)
+
+    if "__NdPoly__" in dct:
+        return NdPoly.from_JSON_dict(dct)
+
+    if "__SymPolyMat__" in dct:
+        if "__DampedSymPolyMat__" in dct:
+            return DampedSymPolyMat.from_JSON_dict(dct)
+        return SymPolyMat.from_JSON_dict(dct)
+
+    if "__DampingFunction__" in dct:
+        if "__Gaussian__" in dct:
+            return Gaussian.from_JSON_dict(dct)
+        if "__Lorentzian__" in dct:
+            return Lorenzian.from_JSON_dict(dct)
+        raise Warning("Serialized abstract DampingFunction instance.")
+
+    if "__Results__" in dct:
+        return Results.from_JSON_dict(dct)
+    
+    if "__Diabatizer__" in dct:
+        return Diabatizer.from_JSON_dict(dct)
+
 
 def adiabatic2(W1, W2, W12, sign):
     """ Return analytical 2-states adiabatic potentials from diabatic ones and coupling. """
