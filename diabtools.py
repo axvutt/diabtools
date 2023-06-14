@@ -673,7 +673,8 @@ class SymPolyMat():
                 "__SymPolyMat__" : True,
                 "Nd" : self.Nd,
                 "Ns" : self.Ns,
-                "elements" : {f"({i}, {j})": self[i,j].to_JSON_dict()}
+                "elements" : {f"({i}, {j})": self[i,j].to_JSON_dict() \
+                        for i in range(self.Ns) for j in range(i+1)}
                 }
         return dct
         
@@ -690,7 +691,7 @@ class SymPolyMat():
 
         M = SymPolyMat(dct["Ns"],dct["Nd"])
         for ij, poly in dct["elements"].items():
-            M[str2tuple(ij)] = NdPoly.from_JSON_dict(poly)
+            M[_str2tuple(ij)] = NdPoly.from_JSON_dict(poly)
 
         return M
 
@@ -796,6 +797,12 @@ class DampedSymPolyMat(SymPolyMat):
                 if i == j :
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
+
+    def __eq__(self, other):
+       if self._damp == other._damp:
+           return super().__eq__(other)
+       else:
+           return False
 
     def to_JSON_dict(self) -> dict:
         dct = super(self).to_JSON_dict()
