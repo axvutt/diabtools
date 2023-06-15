@@ -818,9 +818,11 @@ class DampedSymPolyMat(SymPolyMat):
         if "__DampedSymPolyMat__" not in dct:
             raise KeyError("The JSON object is not a DampedSymPolyMat.")
 
-        M = super().__init__(dct["Ns"],dct["Nd"])
+        M = SymPolyMat.from_JSON_dict(dct)
         M = DampedSymPolyMat.from_SymPolyMat(M)
         for ij, dfdct in dct["damping"].items():
+            if "__One__" in dfdct:
+                df = One.from_JSON_dict(dfdct)
             if "__Gaussian__" in dfdct:
                 df = Gaussian.from_JSON_dict(dfdct)
             elif "__Lorentzian__" in dfdct:
@@ -1563,12 +1565,12 @@ def _str2tuple(s):
     """
     return tuple(map(int,s.strip('()').split(', ')))
 
-# Side note for C++ freaks: those following JSON functions would be easy to
-# translate into template functions
+# In C++, use template
 def save_to_JSON(obj, fname):
     with open(fname, "w") as f:
         json.dump(f, obj.to_JSON_dict())
 
+# In C++, maybe use variant?
 def load_from_JSON(fname):
     with open(fname, "r") as f:
         dct = json.load(f)
@@ -1582,6 +1584,8 @@ def load_from_JSON(fname):
         return SymPolyMat.from_JSON_dict(dct)
 
     if "__DampingFunction__" in dct:
+        if "__One__" in dct:
+            return One.from_JSON_dict(dct)
         if "__Gaussian__" in dct:
             return Gaussian.from_JSON_dict(dct)
         if "__Lorentzian__" in dct:
