@@ -3,8 +3,11 @@ import sys
 from copy import *
 from typing import List, Tuple, Dict, Union
 from collections import UserDict
+from dataclasses import dataclass
+from abc import ABC, abstractmethod 
 import math
 import pickle
+import json
 import numpy as np
 import scipy
 import pytest
@@ -22,8 +25,7 @@ class NdPoly(UserDict):
 
     """
 
-    # TODO: make slots work so as to avoid extra attribute declaration
-    # __slots__ = ('_Nd', '_degree', '_x0', '_zeroPower', '_x0')
+    __slots__ = ('_Nd', '_degree', '_x0', '_zeroPower')
 
     def __init__(self, data):
         if len(data) == 0:
@@ -243,8 +245,9 @@ class NdPoly(UserDict):
         return P 
     
     def __repr__(self):
-        s = super().__repr__()
-        s += f", ORIGIN: {self._x0}"
+        s = object.__repr__(self) \
+                + f"(Nd={self._Nd},x0={self._x0},deg={self.degree},ddeg={self.def_degree})\n" \
+                + super().__repr__()
         return s
 
     def __str__(self):
@@ -308,7 +311,7 @@ class NdPoly(UserDict):
         return s
 
     def __add__(self, other: Union[int,float, self.__class__]):
-        result = copy(self)
+        result = deepcopy(self)
         if isinstance(other, self.__class__):
             assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
             for powers, coeff in other.items():
@@ -325,7 +328,7 @@ class NdPoly(UserDict):
             raise(TypeError)
 
     def __mul__(self, other: Union[int, float, self.__class__]):
-        result = copy(self)
+        result = deepcopy(self)
         if isinstance(other, self.__class__):
             # assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
             raise(NotImplementedError("Product between NdPoly's not yet implemented"))
@@ -336,37 +339,45 @@ class NdPoly(UserDict):
         else:
             raise(TypeError)
 
-    @staticmethod
-    def empty(Nd):
+    def coeffs_to_array(self):
+        """ Return monomial coefficients as a 1D np.ndarray."""
+        return np.array(list(self.coeffs()))
+
+    def powers_to_list(self):
+        """ Return list of tuples of powers in each monomial."""
+        return list(self.powers())
+
+    @classmethod
+    def empty(cls, Nd):
         """ Return an empty Nd-dimensional polynomial """
         # Dirty way: create a contant zero poly and remove the dict item
         powers = tuple([0 for _ in range(Nd)])
-        P = NdPoly.zero(Nd) 
+        P = cls.zero(Nd) 
         del P[powers]
         return P
 
-    @staticmethod
-    def zero(Nd):
+    @classmethod
+    def zero(cls, Nd):
         """ Return a Nd-dimensional polynomial with zero constant term only """
         powers = tuple([0 for _ in range(Nd)])
-        return NdPoly({powers: 0})
+        return cls({powers: 0})
 
-    @staticmethod
-    def one(Nd):
+    @classmethod
+    def one(cls, Nd):
         """ Return a Nd-dimensional polynomial with unit constant term only """
         powers = tuple([0 for _ in range(Nd)])
-        return NdPoly({powers: 1})
+        return cls({powers: 1})
 
-    @staticmethod
-    def zero_like(P: NdPoly):
+    @classmethod
+    def zero_like(cls, P):
         """ Return a polynomial with all powers in P but with zero coefficients """
-        return NdPoly({ p : 0 for p in list(P.powers()) })
+        return cls({ p : 0 for p in list(P.powers()) })
 
-    @staticmethod
-    def one_like(P: NdPoly):
+    @classmethod
+    def one_like(cls, P):
         """ Return a polynomial with all powers in P, with unit constant term
         and all the others with zero coefficient """
-        return NdPoly({ p : 0 for p in list(P.powers()) }) + 1
+        return cls({ p : 0 for p in list(P.powers()) }) + 1
 
     @staticmethod
     def _get_tuples(length, total):
@@ -374,20 +385,20 @@ class NdPoly(UserDict):
         tuples of a given length and sum of its integer entries.
 
         Taken from https://stackoverflow.com/questions/29170953
+        
+        Idea:
+        Make 1D tuples from total to zero
+        Prepend index such that the sum of the 2D tuple is total
+        Make 1D tuples from (total-1) to zero
+        Prepend index such that the sum of the 2D tuple is (total-1)
+        ................... (total-2) to zero
+        .................................................. (total-2)
+        For each generated 2D tuple:
+        Prepend index such that the sum of the 3D tuple is total
+        [... continue if 4D ...]
+        Prepend index such that the sum of the 3D tuple is (total-1)
+        etc...
         """
-        # Idea:
-        # Make 1D tuples from total to zero
-        # Prepend index such that the sum of the 2D tuple is total
-        # Make 1D tuples from (total-1) to zero
-        # Prepend index such that the sum of the 2D tuple is (total-1)
-        # ................... (total-2) to zero
-        # .................................................. (total-2)
-        # For each generated 2D tuple:
-        # Prepend index such that the sum of the 3D tuple is total
-        # [... continue if 4D ...]
-        # Prepend index such that the sum of the 3D tuple is (total-1)
-        # etc...
-
         if length == 1:
             yield (total,)
             return
@@ -396,22 +407,44 @@ class NdPoly(UserDict):
             for t in NdPoly._get_tuples(length - 1, total - i):
                 yield (i,) + t
 
-    @staticmethod
-    def fill_maxdegree(Nd, degree, fill, max_pdeg = None):
+    @classmethod
+    def fill_maxdegree(cls, Nd, degree, fill, max_pdeg = None):
         """ Return a polynomial with all powers up to a given degree """
-        P = NdPoly.empty(Nd)
+        P = cls.empty(Nd)
         P.grow_degree(degree, fill, max_pdeg)
         return P
 
-    @staticmethod
-    def zero_maxdegree(Nd, degree, max_pdeg = None):
+    @classmethod
+    def zero_maxdegree(cls, Nd, degree, max_pdeg = None):
         """ Return a polynomial with all powers up to a given degree """
-        return NdPoly.fill_maxdegree(Nd, degree, 0, max_pdeg)
+        return cls.fill_maxdegree(Nd, degree, 0, max_pdeg)
 
+    @classmethod
+    def one_maxdegree(cls, Nd, degree):
+        return cls.zero_maxdegree(Nd, degree) + 1
+
+    def to_JSON_dict(self) -> dict:
+        jsondct = {
+                "__NdPoly__" : True,
+                "Nd" : self.Nd,
+                "x0" : self.x0.tolist(),
+                "coeffs_by_powers" : {str(p) : c for p,c in self.items()},
+                }
+        return jsondct
+        
     @staticmethod
-    def one_maxdegree(Nd, degree):
-        return NdPoly.zero_maxdegree(Nd, degree) + 1
+    def from_JSON_dict(dct) -> NdPoly:
+        if "__NdPoly__" not in dct:
+            raise KeyError("The JSON object is not a NdPoly.")
 
+        P = NdPoly.empty(dct["Nd"])
+        P.x0 = dct["x0"]
+        
+        # Get polynomial coefficients
+        for raw_power, coeff in dct["coeffs_by_powers"].items():
+            P[_str2tuple(raw_power)] = coeff
+
+        return P
 
 class SymPolyMat():
     """ Real symmetric matrix of multivariate polynomial functions """
@@ -419,6 +452,13 @@ class SymPolyMat():
         self._Ns = Ns
         self._Nd = Nd
         self._polys = [ NdPoly.empty(Nd) for i in range(Ns) for j in range(i+1) ]
+
+    @classmethod
+    def copy(cls, other):
+        """ Copy constructor """
+        if not isinstance(other, cls):
+            raise TypeError(f"Copy constructor expecting type {cls}.")
+        return deepcopy(other)
 
     @property
     def Ns(self):
@@ -437,6 +477,67 @@ class SymPolyMat():
         for p in self._polys:
             p.x0 = shift
 
+    def set_x0_by_ij(self, x0_by_ij):
+        """
+        For each specified polynomial in (i,j), set its origin.
+        Parameters:
+        * x0_by_ij : dict (i,j) -> x0, with
+            - (i,j): tuple of integers, the matrix element indices.
+            - x0: 1D list or np.array of length Nd.
+        """
+        for ij, x0 in x0_by_ij.items():
+            self[ij].x0 = x0
+
+    def coeffs_and_keys(self):
+        """
+        Return a 1D array of all the matrix's coefficients.
+        Additionally, return a list of tuples of the corresponding matrix element indices
+        and monomial powers. The latter is of the same length as that of the array of
+        coefficients and can be used for reconstruction of the matrix.
+        Return:
+        * coeffs: 1d array of the coefficients of all the monomials in the matrix.
+        * list of tuples (i,j,(p1, p2, ...)) where:
+            - i and j are the indices of a matrix element
+            - (p1, p2, ...) is a tuple of powers of a monomial in matrix element (i,j)
+        """
+        keys = []
+        coeffs = []
+        for i in range(self._Ns):
+            for j in range(i+1):
+                coeffs.append(self[i,j].coeffs_to_array())
+                keys += [(i,j,powers) for powers in self[i,j].powers_to_list()]
+        return np.hstack(tuple(coeffs)), keys
+
+    @classmethod
+    def construct(cls, Ns, Nd, keys, coeffs, dict_x0={}):
+        """ Reconstruct matrix from flat list of coefficients
+        Parameters:
+        * Ns : integer, number of states
+        * Nd : integer, number of dimensions/coordinates
+        * keys: list of (i,j,powers) with
+            - i,j integer matrix element indices
+            - powers = (p1, p2, ...) tuple of integer partial powers of monomial
+        * coeffs: 1D np.array of coefficients [c1,c2,...] of same length of keys
+        * x0 = dict of (i,j) -> x0 with
+            - i,j matrix element indices and
+            - x0 the corresponding origin (list/array of length Nd)
+        Return:
+        * Diabatic matrix W such that
+          W[i,j][powers] = c_{powers}^(i,j)
+          W[i,j].x0 = x0^(i,j)
+        """
+        W = cls(Ns, Nd)
+
+        # Coefficients
+        for n, key in enumerate(keys):
+            i, j, powers = key
+            W[i,j][powers] = coeffs[n]
+
+        # Shifts
+        W.set_x0_by_ij(dict_x0)
+
+        return W
+    
     def __iter__(self):
         return self._polys.__iter__()
 
@@ -465,7 +566,7 @@ class SymPolyMat():
         return W
 
     def __repr__(self):
-        s = ""
+        s = object.__repr__(self) + "(Ns={self._Ns},Nd={self._Nd})\n"
         for i in range(self._Ns):
             for j in range(i+1):
                 s += f"({i},{j}): {self[i,j].__repr__()}" + "\n"
@@ -481,6 +582,14 @@ class SymPolyMat():
                     s += f"{powers}: {coeff}" + "\n"
                 s += "\n"
         return s
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if (self.Nd == other.Nd
+                    and self.Ns == other.Ns
+                    and all([a == b for a,b in zip(self, other)])):
+                return True
+        return False
 
     def write_to_txt(self, filename):
         with open(filename, "w") as fout:
@@ -498,28 +607,175 @@ class SymPolyMat():
         with open(filename, "wb") as fout:
             pickle.dump(self, fout)
 
-    @staticmethod
-    def read_from_file(filename):
+    @classmethod
+    def read_from_file(cls, filename):
         with open(filename, "rb") as fin:
             W = pickle.load(fin)
+        if not isinstance(W, cls):
+            raise TypeError(f"File contains object of type {W.type}, expected {cls}.")
+        return W
+
+    @classmethod
+    def zero(cls, Ns, Nd):
+        """ Create zero matrix.
+        Each matrix term is a constant monomial with zero coefficient.
+        """
+        M = cls(Ns,Nd)
+        for i in range(Ns):
+            for j in range(Ns):
+                M[i,j] = NdPoly.zero(Nd)
+        return M
+
+    @classmethod
+    def zero_like(cls, other):
+        """ Create copy with zero polynomial coefficients.
+        Each matrix element is a polynomial with all powers as in other,
+        but whose coefficients are all zero.
+        """
+        newmat = cls.copy(other)
+        for wij in newmat:
+            for powers in wij:
+                wij[powers] = 0
+        return newmat
+
+    @classmethod
+    def eye(cls, Ns, Nd):
+        """ Create identity matrix
+        Each matrix term is a constant monomial with coefficient 1 along
+        the diagonal and 0 otherwise.
+        """
+        I = cls.zero(Ns, Nd)
+        for i in range(Ns):
+            I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
+        return I
+
+    @classmethod
+    def eye_like(cls, other):
+        """ Create identity matrix, with polynomial coefficients of other.
+        Each matrix element is a polynomial with all powers as in other,
+        but whose coefficients are all zero except along the diagonal where
+        the constant term .
+        Warning: If there is no constant term in a diagonal element of other,
+        this will be added (with a coefficient 1).
+        """
+        newmat = cls.zero_like(other)
+        for i in range(newmat.Ns):
+            for j in range(i+1):
+                if i == j :
+                    newmat[i,j][newmat[i,j].zeroPower] = 1
+        return newmat
+
+    def save_to_JSON(self, fname) -> None:
+        with open(fname, "w") as f:
+            json.dump(f, self.to_JSON_dict())
+
+    def to_JSON_dict(self) -> dict:
+        dct = {
+                "__SymPolyMat__" : True,
+                "Nd" : self.Nd,
+                "Ns" : self.Ns,
+                "elements" : {f"({i}, {j})": self[i,j].to_JSON_dict() \
+                        for i in range(self.Ns) for j in range(i+1)}
+                }
+        return dct
+        
+    @classmethod
+    def load_from_JSON(cls, fname) -> cls:
+        with open(fname, "r") as f:
+            M = cls.from_JSON_dict(json.load(f))
+        return M
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__SymPolyMat__" not in dct:
+            raise KeyError("The JSON object is not a SymPolyMat.")
+
+        M = SymPolyMat(dct["Ns"],dct["Nd"])
+        for ij, poly in dct["elements"].items():
+            M[_str2tuple(ij)] = NdPoly.from_JSON_dict(poly)
+
+        return M
+
+class DampedSymPolyMat(SymPolyMat):
+    """ Symmetric Matrix of Polynomials, with damping functions """
+    def __init__(self, Ns, Nd):
+        super().__init__(Ns, Nd)
+        self._damp = [One() for i in range(1,Ns) for j in range(i)]
+
+    @classmethod
+    def from_SymPolyMat(cls, other: SymPolyMat):
+        """
+        Construct DampedSymPolyMat from preexisting SymPolyMat.
+        Copy the SymPolyMat members and set no damping of off-diagonal
+        elements.
+        
+        NB: Since no true copy constructor exists in Python, we'll do the dirty
+        trick of copying all private attributes, manually.
+        """
+        DW = DampedSymPolyMat(other.Ns, other.Nd)
+        DW._polys = deepcopy(other._polys)
+        return DW
+
+    def _check_indices(self, i, j):
+        if i == j:
+            raise IndexError("Diagonal elements not allowed")
+
+    def set_damping(self, pos, dfun: DampingFunction):
+        self._check_indices(*pos)
+        i, j = pos
+        if j > i :
+            i, j = j, i
+        self._damp[i*(i-1)//2 + j] = dfun
+
+    def get_damping(self, pos) -> DampingFunction:
+        self._check_indices(*pos)
+        i, j = pos
+        if j > i :
+            i, j = j, i
+        return self._damp[i*(i-1)//2 + j]
+
+    def __call__(self, x):
+        x = np.atleast_2d(x)
+        if self._Nd == 1 and x.shape[0] == 1:   # If x is a row, make it a column
+            x = x.T
+        Wx = super().__call__(x)
+        Dx = np.ones(Wx.shape)
+        for i in range(1, self._Ns):   # Compute off-diag lower triangular part
+            for j in range(i):
+                Dx[:,i,j] = self.get_damping((i,j))(x)
+                Dx[:,j,i] = Dx[:,i,j]
+        return Wx * Dx
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if super().__eq__(other):
+                if self._damp == other._damp:
+                    return True
+        return False
+
+    @staticmethod
+    def read_from_file(fin):
+        W = pickle.load(fin)
         return W
 
     @staticmethod
     def zero(Ns, Nd):
         """ Create zero matrix.
         Each matrix term is a constant monomial with zero coefficient.
+        No damping (matrix of ones).
         """
-        M = SymPolyMat(Ns,Nd)
+        M = DampedSymPolyMat(Ns,Nd)
         for i in range(Ns):
             for j in range(Ns):
                 M[i,j] = NdPoly.zero(Nd)
         return M
 
     @staticmethod
-    def zero_like(other: SymPolyMat):
+    def zero_like(other: DampedSymPolyMat):
         """ Create copy with zero polynomial coefficients.
         Each matrix element is a polynomial with all powers as in other,
         but whose coefficients are all zero.
+        No damping (matrix of ones).
         """
         newmat = deepcopy(other)
         for wij in newmat:
@@ -532,28 +788,280 @@ class SymPolyMat():
         """ Create identity matrix
         Each matrix term is a constant monomial with coefficient 1 along
         the diagonal and 0 otherwise.
+        No damping (matrix of ones).
         """
-        I = SymPolyMat.zero(Ns, Nd)
+        I = DampedSymPolyMat.zero(Ns, Nd)
         for i in range(Ns):
             I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
         return I
 
     @staticmethod
-    def eye_like(other: SymPolyMat):
+    def eye_like(other: DampedSymPolyMat):
         """ Create identity matrix, with polynomial coefficients of other.
         Each matrix element is a polynomial with all powers as in other,
         but whose coefficients are all zero except along the diagonal where
         the constant term .
         Warning: If there is no constant term in a diagonal element of other,
         this will be added (with a coefficient 1).
+        No damping (matrix of ones).
         """
-        newmat = SymPolyMat.zero_like(other)
+        newmat = DampedSymPolyMat.zero_like(other)
         for i in range(newmat.Ns):
             for j in range(i+1):
                 if i == j :
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
 
+    def to_JSON_dict(self) -> dict:
+        dct = super().to_JSON_dict()
+        dct.update({
+                "__DampedSymPolyMat__" : True,
+                "damping" : {f"({i}, {j})": self.get_damping((i,j)).to_JSON_dict() \
+                        for i in range(1, self._Ns) for j in range(i)}
+                })
+        return dct
+        
+    @staticmethod
+    def from_JSON_dict(dct) -> cls:
+        if "__DampedSymPolyMat__" not in dct:
+            raise KeyError("The JSON object is not a DampedSymPolyMat.")
+
+        M = SymPolyMat.from_JSON_dict(dct)
+        M = DampedSymPolyMat.from_SymPolyMat(M)
+        for ij, dfdct in dct["damping"].items():
+            if "__One__" in dfdct:
+                df = One.from_JSON_dict(dfdct)
+            if "__Gaussian__" in dfdct:
+                df = Gaussian.from_JSON_dict(dfdct)
+            elif "__Lorentzian__" in dfdct:
+                df = Lorentzian.from_JSON_dict(dfdct)
+            else:
+                df = None
+                Warning("Unknown damping function, setting to None")
+            M.set_damping(_str2tuple(ij), df)
+
+        return M
+
+
+class DampingFunction(ABC):
+    """ Abstract base class for damping functions
+    Subclasses should implement __call__"""
+    def __init__(self, x0):
+        self._x0 = x0
+
+    @property
+    def x0(self):
+        return self._x0
+
+    @x0.setter
+    def x0(self, x0):
+        self._x0 = x0
+
+    @abstractmethod
+    def __call__(self, x):
+        pass
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if self._x0 == other._x0:
+                return True
+        return False
+
+    def to_JSON_dict(self):
+        return {"__DampingFunction__": True, "x0": self._x0}
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        return None
+
+
+class One(DampingFunction):
+    def __init__(self):
+        super().__init__(0)
+
+    def __call__(self, x):
+        return 1
+
+    def to_JSON_dict(self):
+        dct = super().to_JSON_dict()
+        dct.update({"__One__": True})
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__One__" not in dct:
+            raise KeyError("The JSON object is not a One.")
+
+        return One()
+
+
+class Gaussian(DampingFunction):
+    def __init__(self, x0, sigma):
+        super().__init__(x0)
+        if math.isclose(sigma,0):
+            raise ValueError("Zero std deviation.")
+        self._sigma = sigma
+
+    @property
+    def sigma(self):
+        return self._sigma
+
+    @sigma.setter
+    def sigma(self, sigma):
+        self._sigma = sigma
+
+    def __call__(self,x):
+        return np.exp(-0.5*((x-self.x0)/self.sigma)**2)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if super().__eq__(other):
+                if self.sigma == other.sigma:
+                    return True
+        return False
+
+    def to_JSON_dict(self):
+        dct = super().to_JSON_dict()
+        dct.update({"__Gaussian__": True, "sigma": self._sigma})
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__Gaussian__" not in dct:
+            raise KeyError("The JSON object is not a Gaussian.")
+
+        return Gaussian(dct["x0"], dct["sigma"])
+
+
+class Lorentzian(DampingFunction):
+    def __init__(self, x0, gamma):
+        super().__init__(x0)
+        if math.isclose(gamma,0):
+            raise ValueError("Zero gamma width parameter.")
+        self._gamma = gamma
+
+    @property
+    def gamma(self):
+        return self._gamma
+
+    @gamma.setter
+    def gamma(self, gamma):
+        self._gamma = gamma
+
+    def __call__(self,x):
+        return 1/(1 + ((x-self.x0)/self.gamma)**2)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if super().__eq__(other):
+                if self.gamma == other.gamma:
+                    return True
+        return False
+
+    def to_JSON_dict(self):
+        dct = super().to_JSON_dict()
+        dct.update({"__Lorentzian__": True, "gamma": self._gamma})
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__Lorentzian__" not in dct:
+            raise KeyError("The JSON object is not a Lorentzian.")
+
+        return Lorentzian(dct["x0"], dct["gamma"])
+
+@dataclass
+class Results:
+    success : bool = False
+    coeffs : np.ndarray = np.array([])
+    n_it : int = 0
+    n_fev : int = 0
+    n_jev : int = 0
+    n_hev : int = 0
+    rmse : float = 0.0
+    wrmse : float = 0.0
+    mae : float = 0.0
+    wmae : float = 0.0
+    delta_rmse : float = 0.0
+    delta_wrmse : float = 0.0
+    delta_mae : float = 0.0
+    delta_wmae : float = 0.0
+    residuals : np.ndarray = np.array([])
+    cost : float = 0.0
+    delta_cost : float = 0.0
+
+    def reset(self):
+        self.success = False
+        self.coeffs = np.array([])
+        self.n_it = 0
+        self.rmse = 0.0
+        self.wrmse = 0.0
+        self.mae = 0.0
+        self.wmae = 0.0
+        self.delta_rmse = 0.0
+        self.delta_wrmse = 0.0
+        self.delta_mae = 0.0
+        self.delta_wmae = 0.0
+        self.residual = np.array([])
+        self.cost = 0.0
+        self.delta_cost = 0.0
+
+    def from_OptimizeResult(self, optres : scipy.optimize.OptimizeResult):
+        self.success = optres.success
+        self.coeffs = optres.x
+        self.cost = optres.fun
+        self.n_it = optres.nit
+        self.n_fev = optres.nfev
+        self.n_jev = optres.njev
+        self.success = optres.success
+    
+    def to_JSON_dict(self):
+        out = {
+                "__Results__" : True,
+                "success"     : self.success,
+                "coeffs"      : self.coeffs.tolist(),
+                "n_it"        : self.n_it,
+                "n_fev"       : self.n_fev,
+                "n_jev"       : self.n_jev,
+                "n_hev"       : self.n_hev,
+                "rmse"        : self.rmse,
+                "wrmse"       : self.wrmse,
+                "mae"         : self.mae,
+                "wmae"        : self.wmae,
+                "delta_rmse"  : self.delta_rmse,
+                "delta_wrmse" : self.delta_wrmse,
+                "delta_mae"   : self.delta_mae,
+                "delta_wmae"  : self.delta_wmae,
+                "residuals"   : self.residuals.tolist(),
+                "cost"        : self.cost,
+                "delta_cost"  : self.delta_cost,
+                }
+        return out
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__Results__" not in dct:
+            raise KeyError("The JSON object is not a Results object.")
+
+        return Results(
+                success     = dct["success"    ],
+                coeffs      = np.array(dct["coeffs"     ]),
+                n_it        = dct["n_it"       ],
+                n_fev       = dct["n_fev"      ],
+                n_jev       = dct["n_jev"      ],
+                n_hev       = dct["n_hev"      ],
+                rmse        = dct["rmse"       ],
+                wrmse       = dct["wrmse"      ],
+                mae         = dct["mae"        ],
+                wmae        = dct["wmae"       ],
+                delta_rmse  = dct["delta_rmse" ],
+                delta_wrmse = dct["delta_wrmse"],
+                delta_mae   = dct["delta_mae"  ],
+                delta_wmae  = dct["delta_wmae" ],
+                residuals   = np.array(dct["residuals"  ]),
+                cost        = dct["cost"       ],
+                delta_cost  = dct["delta_cost" ],
+                )
 
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm, diab_guess: List[SymPolyMat] = None):
@@ -567,19 +1075,49 @@ class Diabatizer:
         else :
             self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
         self._Wout = self._Wguess
-        self._fit = [None for _ in range(Nm)]
-        self._rmse = [None for _ in range(Nm)]
-        self._mae = [None for _ in range(Nm)]
         self._x = dict()
         self._energies = dict()
-        self._domainMap = {i_matrix : {} for i_matrix in range(Nm)}
-        self._domainIDs = set()
+        self._states_by_domain = [dict() for _ in range(Nm)]
+        self._domain_IDs = set()
         self._Ndomains = 0
-        self._lastDomainID = 0
-        self._autoFit = True
-        self._weight_coord = lambda x: 1
-        self._weight_energy = lambda x: 1
-        self._switches = None
+        self._last_domain_ID = 0
+        self._auto_fit = True
+        self._wfun_coord = None
+        self._wfun_energy = None
+        self._manually_weighted_domains = set()
+        self._weights = dict()
+        self._weights_coord = dict()
+        self._weights_energy = dict()
+        self._print_every = 50
+        self._n_cost_calls = 0
+        self._last_residuals = np.array([])
+        self._results = [Results() for _ in range(Nm)]
+
+    @property
+    def x(self):
+        """
+        Map from domain id to array of coordinates of the domain.
+        """
+        return self._x
+
+    @property
+    def energies(self):
+        """
+        Map from domain id to n*m array of energies,
+        n being the number of points in the domain and
+        m being the number of states considered in that domain.
+        """
+        return self._energies
+
+    @property
+    def states_by_domain(self):
+        """
+        Returns list of dicts domain_id -> (s1, s2, ...) with
+        * domain_id : integer, a domain identification number
+        * (s1, s2, ...) : tuple of integers, indicating state numbers
+        Each entry in the list referes to a diabatic matrix included in the model.
+        """
+        return self._states_by_domain
 
     @property
     def Nd(self):
@@ -593,7 +1131,7 @@ class Diabatizer:
 
     def n_fitted_points(self, i_matrix):
         Npts = 0
-        for dom_id, states in self._domainMap[i_matrix].items():
+        for dom_id, states in self._states_by_domain[i_matrix].items():
             Npts += len(self._x[dom_id]) * len(states)
         return Npts
 
@@ -610,18 +1148,11 @@ class Diabatizer:
         return self._Wout
 
     @property
-    def rmse(self):
-        return self._rmse
+    def results(self):
+        """ Return diabatization results dictionnary """
+        return self._results
 
-    @property
-    def mae(self):
-        return self._mae
-
-    @property
-    def fit(self):
-        return self._fit
-
-    def addDomain(self, x: np.ndarray, en: np.ndarray):
+    def add_domain(self, x: np.ndarray, en: np.ndarray):
         """ Add N points to the database of energies to be fitted
         
         Parameters
@@ -647,23 +1178,28 @@ class Diabatizer:
                 + f"{en.shape[1]} states, expected {self._Ns}."
         assert x.shape[0] == en.shape[0], "Coordinates vs energies "\
                 + "dimensions mismatch."
-        id_domain = self._lastDomainID
-        self._domainIDs.add(id_domain)
+        id_domain = self._last_domain_ID
+        self._domain_IDs.add(id_domain)
         self._x[id_domain] = x
+        self._weights_coord[id_domain] = np.ones((x.shape[0],1))
         self._energies[id_domain] = en
+        self._weights_energy[id_domain] = np.ones_like(en)
         self._Ndomains += 1
-        self._lastDomainID += 1
+        self._last_domain_ID += 1
         return id_domain
 
-    def removeDomain(id_domain):
+    def remove_domain(id_domain):
         self._domains.remove(id_domain)
         self._x.pop(id_domain)
         self._energies.pop(id_domain)
+        self._weights_coord.pop(id_domain)
+        self._weights_energy.pop(id_domain)
+        self._weights.pop(id_domain)
         for i_matrix in self._Nm:
             self._fitDomains[i_matrix].pop(id_domain)
         self._Ndomains -= 1
 
-    def setFitDomain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
+    def set_fit_domain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
         """ Specify the domain and states that a diabatic potential matrix
         should fit.
         """
@@ -676,66 +1212,43 @@ class Diabatizer:
             + f"states {states} is out of range, " \
             + f"should be 0 <= s < {self._Ns}."
 
-        self._domainMap[n_matrix][id_domain] = states
-        self._autoFit = False
+        self._states_by_domain[n_matrix][id_domain] = states
+        self._auto_fit = False
 
-    def setFitAllDomains(self, n_matrix: int):
-        for idd in self._domainIDs:
-            self.setFitDomain(n_matrix, idd)
+    def set_fit_all_domain(self, n_matrix: int):
+        for idd in self._domain_IDs:
+            self.set_fit_domain(n_matrix, idd)
 
-    def _coeffsMapping(self, W: SymPolyMat) -> dict:
-        """ Create mapping from a given (i,j,powers) to corresponding
-        coefficient. """
-        coeffs_map = dict()
-        for i in range(self._Ns):
-            for j in range(i+1):
-                for powers, coeff in W[i,j].items():
-                    coeffs_map[(i,j,powers)] = coeff 
-        return coeffs_map
+    def set_domain_weight(self, id_domain, weight):
+        """ Assign a fixed weight to a coordinate domain. """
+        self._manually_weighted_domains.add(id_domain)
+        self._weights[id_domain] = weight
 
-    def _rebuildDiabatic(self, keys, coeffs, dict_x0) -> SymPolyMat:
-        """ Reconstruct diabatic matrix from flat list of coefficients
-        Parameters:
-        * keys = list of (i,j,powers)
-        * coeffs = [c1,c2,...]
-        * x0 = dict of origins {(i,j): x0, ...}
-        Return:
-        * Diabatic matrix W such that
-          W[i,j][powers] = c_{powers}^(i,j)
-        """
+    def unset_domain_weight(self, id_domain):
+        """ Unassign fixed weight to a coordinate domain. """
+        self._manually_weighted_domains.remove(id_domain)
+        domain_shape = self._energies[id_domain].shape
+        self._weights_coord[id_domain] = np.ones((domain_shape[0],1))
+        self._weights_energy[id_domain] = np.ones(domain_shape)
+        self._weights[id_domain] = np.ones(domain_shape)
 
-        W = SymPolyMat(self._Ns, self._Nd)
-
-        # Coefficients
-        for n, key in enumerate(keys):
-            i, j, powers = key
-            W[i,j][powers] = coeffs[n]
-
-        # Shifts
-        for idx, x0 in dict_x0.items():
-            W[idx].x0 = x0
-
-        return W
-    
-    @property
-    def weight_function(self):
-        return self._weight
-
-    def weights(self):
-        return {domain: self._weight(e) for domain, energies in self._energies.items()}
-
-    def set_custom_weight(self, wfun: callable):
+    def set_weight_function(self, wfun: callable, apply_to):
         """ Set user-defined energy-based weighting function for the residuals """
-        self._weight = wfun
+        if apply_to == "energy":
+            self._wfun_energy = wfun
+        elif apply_to == "coord":
+            self._wfun_coord = wfun
+        else:
+            raise ValueError("Weighting function must be applied to either \'coord\' or \'energy\'.")
 
-    def set_gauss_weights(self, mu, sigma):
+    def set_gauss_wfun(self, mu, sigma, apply_to):
         """ Set Gaussian weighting function for the residuals
 
         w = exp(- 1/2 ((y-mu)/sigma)**2 )
         """
-        self._weight = lambda y: np.exp(-0.5*((y-mu)/sigma)**2)
+        self.set_weight_function(lambda y: np.exp(-0.5*((y-mu)/sigma)**2), apply_to)
     
-    def set_gaussband_weights(self, mu, sigma):
+    def set_gaussband_wfun(self, mu, sigma, apply_to):
         """ Set band weighting function for the residuals, with Gaussian tails
 
         w = 1 if mu[0] < y < mu[1]
@@ -749,22 +1262,22 @@ class Diabatizer:
                 return np.exp(-0.5*((y-mu_up)/sigma_up)**2)
             else:
                 return 1
-        self._weight = lambda y: gaussband(y, mu[0], mu[1], sigma[0], sigma[1])
+        self.set_weight_function(lambda y: gaussband(y, mu[0], mu[1], sigma[0], sigma[1]), apply_to)
 
-    def set_exp_weights(self, y0, beta):
+    def set_exp_wfun(self, x0, beta, apply_to):
         """ Set exponential decaying weighting function for the residuals
 
-        w = exp(-(y-mu)/beta) if y > mu
+        w = exp(-(x-x0)/beta) if x > x0
         w = 1   otherwise
         """
-        self._weight = lambda y: np.exp(-(y-y0)/beta) if y>y0 else 1
+        self.set_weight_function(lambda y: np.exp(-(y-x0)/beta) if y>x0 else 1, apply_to)
 
-    def set_expband_weights(self, y0, beta):
+    def set_expband_wfun(self, x0, beta, apply_to):
         """ Set band weighting function for the residuals, with exponential decaying tails
 
-        w = 1 if mu[0] < y < mu[1]
-        w = exp( (y-mu[0])/beta[0]) if y<mu[0]
-        w = exp(-(y-mu[1])/beta[1]) if y<mu[1]
+        w = 1 if x0[0] < x < x0[1]
+        w = exp( (x-x0[0])/beta[0]) if y<x0[0]
+        w = exp(-(x-x0[1])/beta[1]) if y<x0[1]
         """
         def expband(y, y_down, y_up, beta_down, beta_up):
             if y < y_down:
@@ -773,10 +1286,103 @@ class Diabatizer:
                 return np.exp(-(y-mu_up)/beta_up)
             else:
                 return 1
-        self._weight = lambda y: expband(y, y0[0], y0[1], beta[0], beta[1])
+        self.set_weight_function(lambda y: expband(y, x0[0], x0[1], beta[0], beta[1]), apply_to)
 
-    def residual(self, c, keys, x0s, i_matrix):
-        """ Compute residual for finding optimal diabatic anzats coefficients.
+    def compute_weights(self):
+        """
+        Precompute weights assigned to points in coordinate space or the corresponding energies
+        if weighting functions have been specified.
+        """
+        # Leave out domains whose weights were specified manually
+        for id_ in self._domain_IDs.difference(self._manually_weighted_domains):
+            # Coordinate-based weights
+            if self._wfun_coord:
+                self._weights_coord[id_] = self._wfun_coord(self._x[id_])
+            # Energy-based weights
+            if self._wfun_energy:
+                self._weights_energy[id_] = self._wfun_energy(self._energies[id_])
+            # Combine
+            self._weights[id_] = self._weights_coord[id_] * self._weights_energy[id_]
+
+
+    def compute_errors(self):
+        """
+        Compute weighted and unweighted RMSE and MAE between
+        reference adiabatic energies and those deduced from of all
+        current diabatic matrices in Wout, within the associated domains
+        """
+        rmse_list = []
+        wrmse_list = []
+        mae_list = []
+        wmae_list = []
+
+        # Compute errors for each matrix
+        for im in range(self._Nm):
+            res = []
+            w = []
+
+            # Evaluate adiabatic matrices over each domain
+            for id_, states in self.states_by_domain[im].items():
+                x = self._x[id_]
+                Wx = self._Wout[im](x)
+                Vx, Sx = adiabatic(Wx)
+
+                # Compute residual against selected states over the domain
+                for s in states:
+                    res.append(self._energies[id_][:,s] - Vx[:,s])
+                    w.append(np.broadcast_to(self._weights[id_][:,s], res[-1].shape))
+
+            # Compute errors and save
+            res = np.hstack(res)
+            w = np.hstack(w)
+
+            resabs = np.abs(res)
+            res2 = np.dot(res,res)
+            sumw = np.sum(w)
+
+            rmse = np.sqrt(np.sum(res2)/self.n_fitted_points(im))
+            wrmse = np.sqrt(np.sum(w * res2)/sumw)
+            mae = np.sum(resabs)/self.n_fitted_points(im)
+            wmae = np.sum(w * resabs)/sumw
+
+            self._results[im].rmse = rmse
+            self._results[im].wrmse = wrmse
+            self._results[im].mae = mae
+            self._results[im].wmae = wmae
+
+
+    def _compute_residuals(self, W: SymPolyMat, domains: dict):
+        """
+        Compute residual between reference energies and those deduced from a diabatic potential
+        matrix.
+        Parameters:
+        * W : SymPolymat, diabatic matrix
+        * domains : dict id_ -> (s1, s2, ...), where id_ is a domain id (int) and s1, s2, ...
+          are electronic states.
+        Return:
+        * res : 1D np.ndarray of residuals
+        """
+        residuals = []
+        for id_, states in domains.items():
+            # Compute adiabatic potential from diabatic ansatz
+            x = self._x[id_]
+            Wx = W(x)
+            Vx, Sx = adiabatic(Wx)
+
+            # Retreive data energies and compute (weighted) residuals over the domain
+            for s in states:
+                Vdata = self._energies[id_][:,s]
+                if np.any(np.isnan(Vdata)):
+                    raise(ValueError(f"Found NaN energies in domain {id_}, state {s}. "
+                        + "Please deselect from fitting dataset."))
+
+                residuals.append(Vx[:,s]-Vdata)
+
+        return np.hstack(tuple(residuals))
+
+    def _cost(self, c, keys, x0s, domains, weights):
+        """
+        Compute cost function for finding optimal diabatic anzats coefficients.
 
         This method is passed to the optimizer in order to find the optimal coefficients c
         such that the adiabatic surfaces obtained from diagonalization of the
@@ -786,37 +1392,36 @@ class Diabatizer:
         * c : 1d list/numpy array of coefficients
         * keys : list of keys (i,j,(p1,p2,...)) mapping each of the coefficients
           to a specific matrix element and monomial key
-        * x0s : dict of (i,j) matrix indices mapped to the corresponding origin
-        * i_matrix : index of the diabatic matrix to fit
+        * x0s : dict of (i,j) -> x0 mapping matrix indices to origin point
+        * domains : dict of id_ -> (s1, s2, ...) mapping domain index to tuple of state indices
         """
 
         # Construct diabatic matrix by reassigning coefficients to
         # powers of each of the matrix elements
-        W = self._rebuildDiabatic(keys, c, x0s)
+        W = SymPolyMat.construct(self._Ns, self._Nd, keys, c, x0s)
 
-        # Compute residual function
-        residuals = []
-        for id_domain, states in self._domainMap[i_matrix].items():
-            # Compute W(x) over the domain, diagonalize the obtained point-wise matrices
-            x = self._x[id_domain]
-            Wx = W(x)
-            Vx, Sx = adiabatic(Wx)
+        res = self._compute_residuals(W, domains)
+        # Store for verbose output
+        self._last_residuals = res
+        wrmse = wRMSE(res, weights)
+        return wrmse
+    
+    def _verbose_cost(self, c, keys, x0s, domains, weights):
+        """ Wrapper of cost function which also prints out optimization progress. """
+        wrmse = self._cost(c, keys, x0s, domains, weights)
+        n = self._increment_cost_calls()
+        if n % self._print_every == 0:
+            rmse = RMSE(self._last_residuals)
+            mae = MAE(self._last_residuals)
+            wmae = wMAE(self._last_residuals, weights) 
+            print("{:<10d} {:12.8e} {:12.8e} {:12.8e} {:12.8e}".format(n,wrmse,rmse,wmae,mae))
+        return wrmse
 
-            # Retreive data energies and compute (weighted) residuals over the domain
-            for s in states:
-                Vdata = self._energies[id_domain][:,s]
-                if np.any(np.isnan(Vdata)):
-                    raise(ValueError(f"Found NaN energies in domain {id_domain}, state {s}. "
-                        + "Please deselect from fitting dataset."))
-                residuals.append(
-                        self._weight_coord(x) * self._weight_energy(Vdata) * (Vx[:,s]-Vdata)
-                        )
+    def _increment_cost_calls(self):
+        self._n_cost_calls += 1
+        return self._n_cost_calls
 
-        # Recast into 1d np.ndarray
-        f = np.hstack(tuple(residuals))
-        return f 
-
-    def optimize(self, verbose=0, max_nfev=None):
+    def optimize(self, verbose=0, maxiter=1000):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -825,52 +1430,144 @@ class Diabatizer:
         # By default, if no specific domain setting is given, use all the data
         # in the database for the fit
         # NB: autoFit is false if Nm > 1
-        if self._autoFit:
-            self.setFitAllDomains(0)
+        if self._auto_fit:
+            self.set_fit_all_domain(0)
 
+        # Compute weights associated to points
+        self.compute_weights()
+        
         # Run a separate optimization for each diabatic matrix
         for i_matrix in range(self._Nm):
+            self._results[i_matrix].reset()
+            self._n_cost_calls = 0
+
             # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
             # used for reconstructing the diabatic ansatzes during the optimization
             # and at the end
-            keys2coeffs = self._coeffsMapping(self._Wguess[i_matrix])
-            keys = tuple(keys2coeffs.keys())
-            guess_coeffs = list(keys2coeffs.values())
+            coeffs, keys = self._Wguess[i_matrix].coeffs_and_keys()
             origins = self._Wguess[i_matrix].get_all_x0()
+            this_matrix_domains = self._states_by_domain[i_matrix]
+            weights = []
+            for id_, states in this_matrix_domains.items():
+                for s in states:
+                    weights.append(self._weights[id_][:,s])
+            weights = np.hstack(tuple(weights))
 
-            lsfit = scipy.optimize.least_squares(
-                    self.residual,          # Residual function
-                    np.array(guess_coeffs), # Initial guess
-                    gtol=1e-10,             # Termination conditions (quality)
-                    ftol=1e-10,
-                    xtol=1e-10,
-                    args=(keys, origins, i_matrix),   # keys and origins of elements of each matrix, reconstructed in residual
-                    verbose=verbose,        # Printing option
-                    max_nfev=max_nfev)      # Termination condition (# iterations)
-
-            self._fit[i_matrix] = lsfit
-            self._rmse[i_matrix] = np.sqrt(np.dot(lsfit.fun, lsfit.fun)/self.n_fitted_points(i_matrix))
-            self._mae[i_matrix] = np.sum(np.abs(lsfit.fun))/self.n_fitted_points(i_matrix)
-            self._Wout[i_matrix] = self._rebuildDiabatic(
-                    keys,
-                    lsfit.x,
-                    self._Wguess[i_matrix].get_all_x0()
+            if verbose == 1:
+                cost_fun = self._verbose_cost
+                print("I    " + "COST")
+            else:
+                cost_fun = self._cost
+            
+            optres = scipy.optimize.minimize(
+                    cost_fun,    # Objective function to minimize
+                    coeffs,                 # Initial guess
+                    args=(keys, origins, this_matrix_domains, weights),   # other arguments passed to objective function
+                    method="l-bfgs-b",
+                    # method="trust-constr",
+                    options={
+                        "gtol": 1e-08,      # Termination conditions (quality)
+                        # "xtol": 1e-08,
+                        "maxiter": maxiter, # Termination condition (# iterations) 
+                        # "verbose": verbose, # Printing option
+                        }
                     )
+            
+            self._Wout[i_matrix] = SymPolyMat.construct(self._Ns, self._Nd, keys, optres.x, origins)
+            self._results[i_matrix].from_OptimizeResult(optres)
 
+        self.compute_errors()
+        
         return self._Wout
+
+    def to_JSON_dict(self):
+        dct = {
+                "__Diabatizer__" : True,
+                "Nd"                        : self._Nd,
+                "Ns"                        : self._Ns,
+                "Nm"                        : self._Nm,
+                "Wguess"                    : [Wg.to_JSON_dict() for Wg in self._Wguess],
+                "Wout"                      : [Wo.to_JSON_dict() for Wo in self._Wout],
+                "x"                         : {id_ : x.tolist() for id_,x in self._x.items()},
+                "energies"                  : {id_ : e.tolist() for id_,e in self._energies.items()},
+                "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()}
+                                                    for dct in self._states_by_domain],
+                "domain_IDs"                : list(self._domain_IDs),
+                "Ndomains"                  : self._Ndomains,
+                "last_domain_ID"            : self._last_domain_ID,
+                "auto_fit"                  : self._auto_fit,
+                "wfun_coord"                : None, # self._wfun_coord,
+                "wfun_energy"               : None, # self._wfun_energy,
+                "manually_weighted_domains" : list(self._manually_weighted_domains),
+                "weights"                   : {id_: w.tolist() for id_, w in self._weights.items()},
+                "weights_coord"             : {id_: w.tolist() for id_, w in self._weights_coord.items()},
+                "weights_energy"            : {id_: w.tolist() for id_, w in self._weights_energy.items()},
+                "print_every"               : self._print_every,
+                "n_cost_calls"              : self._n_cost_calls,
+                "last_residuals"            : self._last_residuals.tolist(),
+                "results"                   : [r.to_JSON_dict() for r in self.results],
+                }
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        """
+        Deserialize Diabatizer in an intrusive way, i.e. setting some private members manually.
+        ! This may become dangerous if the structure of the Diabatizer class change.
+        """
+        Wguess = []
+        for Wg_dict in dct["Wguess"]:
+            if "__DampedSymPolyMat__" in Wg_dict:
+                Wguess.append(DampedSymPolyMat.from_JSON_dict(Wg_dict))
+                continue
+            Wguess.append(SymPolyMat.from_JSON_dict(Wg_dict))
+
+        Wout = []
+        for Wo_dict in dct["Wout"]:
+            if "__DampedSymPolyMat__" in Wo_dict:
+                Wout.append(DampedSymPolyMat.from_JSON_dict(Wo_dict))
+                continue
+            Wout.append(SymPolyMat.from_JSON_dict(Wo_dict))
+
+        diab = Diabatizer(dct["Nd"], dct["Ns"], dct["Nm"], Wguess)
+        diab._Wguess = Wguess
+        diab._Wout = Wout
+        diab._x = {id_: np.array(xlist) for id_, xlist in dct["x"].items()}
+        diab._energies = {
+                id_: np.array(elist) \
+                        for id_, elist in dct["energies"].items()
+                        }
+        diab._states_by_domain = [
+                {
+                    id_: _str2tuple(str_states) \
+                        for id_, str_states in sbd_dct.items()
+                } for sbd_dct in dct["states_by_domain"]
+                ]
+        diab._domain_IDs = set(dct["domain_IDs"])
+        diab._Ndomains = dct["Ndomains"]
+        diab._last_domain_ID = dct["last_domain_ID"]
+        diab._auto_fit = dct["auto_fit"]
+        diab._wfun_coord = None
+        diab._wfun_energy = None
+        diab._manually_weighted_domains = set(dct["manually_weighted_domains"])
+        diab._weights = {id_: np.array(w) for id_, w in dct["weights"].items()}
+        diab._weights_coord = {id_: np.array(w) for id_, w in dct["weights_coord"].items()}
+        diab._weights_energy = {id_: np.array(w) for id_, w in dct["weights_energy"].items()}
+        diab._print_every = dct["print_every"]
+        diab._n_cost_calls = dct["n_cost_calls"]
+        diab._last_residuals = np.array(dct["last_residuals"])
+        diab._results = [Results.from_JSON_dict(rdct) for rdct in dct["results"]]
 
 
 class SingleDiabatizer(Diabatizer):
     def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
         super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
 
-    @property
     def rmse(self):
-        return self._rmse[0]
+        return super().results[0].rmse
 
-    @property
     def mae(self):
-        return self._mae[0]
+        return super().results[0].mae
 
     @property
     def fit(self):
@@ -889,6 +1586,48 @@ class SingleDiabatizer(Diabatizer):
         return self._Wout[0]
 
 ### NON-CLASS FUNCTIONS ###
+
+def _str2tuple(s):
+    """
+    Convert string to original tuple of integers.
+    Assuming that the string was obtained with str(t),
+    t being the tuple.
+    """
+    return tuple(map(int,s.strip('()').split(', ')))
+
+# In C++, use template
+def save_to_JSON(obj, fname):
+    with open(fname, "w") as f:
+        json.dump(f, obj.to_JSON_dict())
+
+# In C++, maybe use variant?
+def load_from_JSON(fname):
+    with open(fname, "r") as f:
+        dct = json.load(f)
+
+    if "__NdPoly__" in dct:
+        return NdPoly.from_JSON_dict(dct)
+
+    if "__SymPolyMat__" in dct:
+        if "__DampedSymPolyMat__" in dct:
+            return DampedSymPolyMat.from_JSON_dict(dct)
+        return SymPolyMat.from_JSON_dict(dct)
+
+    if "__DampingFunction__" in dct:
+        if "__One__" in dct:
+            return One.from_JSON_dict(dct)
+        if "__Gaussian__" in dct:
+            return Gaussian.from_JSON_dict(dct)
+        if "__Lorentzian__" in dct:
+            return Lorenzian.from_JSON_dict(dct)
+        raise Warning("Serialized abstract DampingFunction instance.")
+
+    if "__Results__" in dct:
+        return Results.from_JSON_dict(dct)
+    
+    if "__Diabatizer__" in dct:
+        return Diabatizer.from_JSON_dict(dct)
+
 
 def adiabatic2(W1, W2, W12, sign):
     """ Return analytical 2-states adiabatic potentials from diabatic ones and coupling. """
@@ -931,6 +1670,22 @@ def switch_sinsin(x, smin=0, smax=1):
     #     return np.sin(np.pi/2 * np.sin(np.pi/2 * xs) )
     return (1 - np.sin(np.pi/2*np.sin(np.pi/2*(2*xs - 1))))/2
     
+def RMSE(residuals):
+    """ Compute unweighted Root-Mean-Square Error from residuals. """
+    return np.sqrt(np.sum(residuals**2)/len(residuals))
+
+def wRMSE(residuals, weights):
+    """ Compute weighted Root-Mean-Square Error from residuals and weights. """
+    return np.sqrt(np.sum(weights * residuals**2)/np.sum(weights))
+
+def MAE(residuals):
+    """ Compute unweighted Mean-Average Error from residuals. """
+    return np.sum(np.abs(residuals))/len(residuals)
+
+def wMAE(residuals, weights):
+    """ Compute weighted Mean-Average Error from residuals and weights. """
+    return np.sum(weights * np.abs(residuals))/np.sum(weights)
+
 
 ### MAIN ###
 def main(argv) -> int:

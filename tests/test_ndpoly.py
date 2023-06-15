@@ -232,3 +232,21 @@ class TestPoly:
         P = NdPoly({(1,2,3): 4, (0,1,2): 3, (3,0,2): 3, (0,4,0): 3, (2,2,2): 3, (6,6,6): 0})
         assert P.degree == 6
         assert P.def_degree == 18
+
+    def test_coeffs_array(self):
+        P = NdPoly({(1,2,3): 1, (0,1,2): 2, (3,0,2): 3, (0,4,0): 4, (2,2,2): 5, (6,6,6): 0})
+        assert np.all(P.coeffs_to_array() == np.array([2,4,1,5,3,0]))
+
+    def test_powers_list(self):
+        P = NdPoly({(1,2,3): 1, (0,1,2): 2, (3,0,2): 3, (0,4,0): 4, (2,2,2): 5, (6,6,6): 0})
+        assert all([a == b for a,b in zip(
+            P.powers_to_list(),
+            [(0,1,2),(0,4,0),(1,2,3),(2,2,2),(3,0,2),(6,6,6)]
+            )
+        ])
+
+    def test_reconstruct(self):
+        P = NdPoly({(1,2,3): 1, (0,1,2): 2, (3,0,2): 3, (0,4,0): 4, (2,2,2): 5, (6,6,6): 0})
+        Q = NdPoly({powers: coeff for powers, coeff in zip(P.powers_to_list(), P.coeffs_to_array())})
+        assert P == Q
+
