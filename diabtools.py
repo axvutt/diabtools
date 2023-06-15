@@ -584,11 +584,12 @@ class SymPolyMat():
         return s
 
     def __eq__(self, other):
-        if self.Nd != other.Nd:
-            return False
-        if self.Ns != other.Ns:
-            return False
-        return all([a == b for a,b in zip(self, other)])
+        if isinstance(other, self.__class__):
+            if (self.Nd == other.Nd
+                    and self.Ns == other.Ns
+                    and all([a == b for a,b in zip(self, other)])):
+                return True
+        return False
 
     def write_to_txt(self, filename):
         with open(filename, "w") as fout:
@@ -699,7 +700,7 @@ class DampedSymPolyMat(SymPolyMat):
     """ Symmetric Matrix of Polynomials, with damping functions """
     def __init__(self, Ns, Nd):
         super().__init__(Ns, Nd)
-        self._damp = [One() for i in range(Ns) for j in range(i+1)]
+        self._damp = [One() for i in range(1,Ns) for j in range(i)]
 
     @classmethod
     def from_SymPolyMat(cls, other: SymPolyMat):
@@ -715,29 +716,42 @@ class DampedSymPolyMat(SymPolyMat):
         DW._polys = deepcopy(other._polys)
         return DW
 
-    def set_damping(self, pos, dfun: callable):
-        i, j = pos
-        if j > i :
-            i, j = j, i
-        self._damp[i*(i+1)//2 + j] = dfun
+    def _check_indices(self, i, j):
+        if i == j:
+            raise IndexError("Diagonal elements not allowed")
 
-    def get_damping(self, pos) -> callable:
+    def set_damping(self, pos, dfun: DampingFunction):
+        self._check_indices(*pos)
         i, j = pos
         if j > i :
             i, j = j, i
-        return self._damp[i*(i+1)//2 + j]
+        self._damp[i*(i-1)//2 + j] = dfun
+
+    def get_damping(self, pos) -> DampingFunction:
+        self._check_indices(*pos)
+        i, j = pos
+        if j > i :
+            i, j = j, i
+        return self._damp[i*(i-1)//2 + j]
 
     def __call__(self, x):
         x = np.atleast_2d(x)
         if self._Nd == 1 and x.shape[0] == 1:   # If x is a row, make it a column
             x = x.T
         Wx = super().__call__(x)
-        Dx = np.zeros(Wx.shape)
-        for i in range(self._Ns):   # Compute lower triangular part
-            for j in range(i+1):
+        Dx = np.ones(Wx.shape)
+        for i in range(1, self._Ns):   # Compute off-diag lower triangular part
+            for j in range(i):
                 Dx[:,i,j] = self.get_damping((i,j))(x)
                 Dx[:,j,i] = Dx[:,i,j]
         return Wx * Dx
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if super().__eq__(other):
+                if self._damp == other._damp:
+                    return True
+        return False
 
     @staticmethod
     def read_from_file(fin):
@@ -798,18 +812,12 @@ class DampedSymPolyMat(SymPolyMat):
                     newmat[i,j][newmat[i,j].zeroPower] = 1
         return newmat
 
-    def __eq__(self, other):
-       if self._damp == other._damp:
-           return super().__eq__(other)
-       else:
-           return False
-
     def to_JSON_dict(self) -> dict:
         dct = super().to_JSON_dict()
         dct.update({
                 "__DampedSymPolyMat__" : True,
                 "damping" : {f"({i}, {j})": self.get_damping((i,j)).to_JSON_dict() \
-                        for i in range(self._Ns) for j in range(i+1)}
+                        for i in range(1, self._Ns) for j in range(i)}
                 })
         return dct
         
@@ -852,6 +860,12 @@ class DampingFunction(ABC):
     @abstractmethod
     def __call__(self, x):
         pass
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if self._x0 == other._x0:
+                return True
+        return False
 
     def to_JSON_dict(self):
         return {"__DampingFunction__": True, "x0": self._x0}
@@ -899,6 +913,13 @@ class Gaussian(DampingFunction):
     def __call__(self,x):
         return np.exp(-0.5*((x-self.x0)/self.sigma)**2)
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if super().__eq__(other):
+                if self.sigma == other.sigma:
+                    return True
+        return False
+
     def to_JSON_dict(self):
         dct = super().to_JSON_dict()
         dct.update({"__Gaussian__": True, "sigma": self._sigma})
@@ -929,6 +950,13 @@ class Lorentzian(DampingFunction):
 
     def __call__(self,x):
         return 1/(1 + ((x-self.x0)/self.gamma)**2)
+
+    def __eq__(self, other):
+        if isinstance(other, self.__class__):
+            if super().__eq__(other):
+                if self.gamma == other.gamma:
+                    return True
+        return False
 
     def to_JSON_dict(self):
         dct = super().to_JSON_dict()
