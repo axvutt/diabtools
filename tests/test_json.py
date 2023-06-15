@@ -3,8 +3,6 @@ import numpy as np
 import pytest
 import json
 from ..diabtools import *
-from ..json_encoders import *
-from ..json_decoders import *
 
 class TestJSON:
     """ """
