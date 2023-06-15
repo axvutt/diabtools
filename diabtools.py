@@ -699,7 +699,7 @@ class DampedSymPolyMat(SymPolyMat):
     """ Symmetric Matrix of Polynomials, with damping functions """
     def __init__(self, Ns, Nd):
         super().__init__(Ns, Nd)
-        self._damp = [lambda x: 1 for i in range(Ns) for j in range(i+1)]
+        self._damp = [One() for i in range(Ns) for j in range(i+1)]
 
     @classmethod
     def from_SymPolyMat(cls, other: SymPolyMat):
@@ -805,10 +805,10 @@ class DampedSymPolyMat(SymPolyMat):
            return False
 
     def to_JSON_dict(self) -> dict:
-        dct = super(self).to_JSON_dict()
+        dct = super().to_JSON_dict()
         dct.update({
                 "__DampedSymPolyMat__" : True,
-                "damping" : {f"({i}, {j})": self.get_damping(i,j).to_JSON_dict() \
+                "damping" : {f"({i}, {j})": self.get_damping((i,j)).to_JSON_dict() \
                         for i in range(self._Ns) for j in range(i+1)}
                 })
         return dct
@@ -857,6 +857,26 @@ class DampingFunction(ABC):
     @staticmethod
     def from_JSON_dict(dct):
         return None
+
+
+class One(DampingFunction):
+    def __init__(self):
+        super().__init__(0)
+
+    def __call__(self, x):
+        return 1
+
+    def to_JSON_dict(self):
+        dct = super().to_JSON_dict()
+        dct.update({"__One__": True})
+        return dct
+
+    @staticmethod
+    def from_JSON_dict(dct):
+        if "__One__" not in dct:
+            raise KeyError("The JSON object is not a One.")
+
+        return One()
 
 
 class Gaussian(DampingFunction):
