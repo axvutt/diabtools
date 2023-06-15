@@ -1,10 +1,9 @@
-import os
-from ..diabtools import *
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from ..diabatizer import Diabatizer, SingleDiabatizer
 
-class TestDiabatizer:
+class TestDiabatizer
     def test_LiF(self, pytestconfig):
         import ConstantsSI as SI
         import matplotlib.pyplot as plt

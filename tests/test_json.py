@@ -1,8 +1,10 @@
-import os
 import numpy as np
 import pytest
 import json
-from ..diabtools import *
+from ..ndpoly import NdPoly
+from ..sympolymat import SymPolyMat
+from ..dampedsympolymat import DampedSymPolyMat
+from ..diabatizer import Diabatizer
 
 class TestJSON:
     """ """

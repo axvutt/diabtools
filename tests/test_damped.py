@@ -1,7 +1,7 @@
-from ..diabtools import *
-import os
 import numpy as np
 import matplotlib.pyplot as plt
+from ..dampedsympolymat import DampedSymPolyMat
+from ..damping import Gaussian, Lorentzian
 
 class TestDampedSymMat:
     

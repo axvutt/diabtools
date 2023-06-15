@@ -1,8 +1,7 @@
-from ..diabtools import *
-import math
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from ..switchfunc import switch_poly, switch_sinsin
 
 def test_switchPoly(pytestconfig):
     x = np.linspace(-2,2,101)

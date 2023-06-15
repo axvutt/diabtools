@@ -1,5 +1,5 @@
-from ..diabtools import *
 import numpy as np
+from ..ndpoly import NdPoly
 
 class TestPoly:
     testdata = np.linspace(0,1,4)[:,np.newaxis]

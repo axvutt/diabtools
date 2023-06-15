@@ -1,7 +1,7 @@
-from ..diabtools import *
 import os
 import numpy as np
 import pytest
+from ..sympolymat import SymPolyMat
 
 class TestSymMat:
     
