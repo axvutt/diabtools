@@ -1488,7 +1488,7 @@ class Diabatizer:
                 "Wout"                      : [Wo.to_JSON_dict() for Wo in self._Wout],
                 "x"                         : {id_ : x.tolist() for id_,x in self._x.items()},
                 "energies"                  : {id_ : e.tolist() for id_,e in self._energies.items()},
-                "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()} \
+                "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()}
                                                     for dct in self._states_by_domain],
                 "domain_IDs"                : list(self._domain_IDs),
                 "Ndomains"                  : self._Ndomains,
@@ -1497,13 +1497,13 @@ class Diabatizer:
                 "wfun_coord"                : None, # self._wfun_coord,
                 "wfun_energy"               : None, # self._wfun_energy,
                 "manually_weighted_domains" : list(self._manually_weighted_domains),
-                "weights"                   : [w.tolist() for w in self._weights],
-                "weights_coord"             : [w.tolist() for w in self._weights_coord],
-                "weights_energy"            : [w.tolist() for w in self._weights_energy],
+                "weights"                   : {id_: w.tolist() for id_, w in self._weights.items()},
+                "weights_coord"             : {id_: w.tolist() for id_, w in self._weights_coord.items()},
+                "weights_energy"            : {id_: w.tolist() for id_, w in self._weights_energy.items()},
                 "print_every"               : self._print_every,
                 "n_cost_calls"              : self._n_cost_calls,
                 "last_residuals"            : self._last_residuals.tolist(),
-                "results"                   : [self.default(r) for r in self.results],
+                "results"                   : [r.to_JSON_dict() for r in self.results],
                 }
         return dct
 
@@ -1539,10 +1539,10 @@ class Diabatizer:
                 {
                     id_: _str2tuple(str_states) \
                         for id_, str_states in sbd_dct.items()
-                } for sbd_dct in dct["state_by_domain"]
+                } for sbd_dct in dct["states_by_domain"]
                 ]
         diab._domain_IDs = set(dct["domain_IDs"])
-        diab._N_domains = dct["N_domains"]
+        diab._Ndomains = dct["Ndomains"]
         diab._last_domain_ID = dct["last_domain_ID"]
         diab._auto_fit = dct["auto_fit"]
         diab._wfun_coord = None
@@ -1553,7 +1553,7 @@ class Diabatizer:
         diab._weights_energy = {id_: np.array(w) for id_, w in dct["weights_energy"].items()}
         diab._print_every = dct["print_every"]
         diab._n_cost_calls = dct["n_cost_calls"]
-        diab._last_residuals = np.array(dct["last_residual"])
+        diab._last_residuals = np.array(dct["last_residuals"])
         diab._results = [Results.from_JSON_dict(rdct) for rdct in dct["results"]]
 
 
