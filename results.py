@@ -42,10 +42,12 @@ class Results:
         self.success = optres.success
         self.coeffs = optres.x
         self.cost = optres.fun
-        self.n_it = optres.nit
-        self.n_fev = optres.nfev
-        self.n_jev = optres.njev
-        self.success = optres.success
+        if "nit" in optres:
+            self.n_it = optres.nit
+        if "nfev" in optres:
+            self.n_fev = optres.nfev
+        if "njev" in optres:
+            self.n_jev = optres.njev
     
     def to_JSON_dict(self):
         out = {
