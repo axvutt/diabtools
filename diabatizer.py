@@ -380,7 +380,7 @@ class Diabatizer:
         self._n_cost_calls += 1
         return self._n_cost_calls
 
-    def optimize(self, method="l-bfgs-b", verbose=0, maxiter=1000):
+    def optimize(self, method="l-bfgs-b", method_options=None):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -412,12 +412,13 @@ class Diabatizer:
                     weights.append(self._weights[id_][:,s])
             weights = np.hstack(tuple(weights))
 
-            if verbose == 1:
-                cost_fun = self._verbose_cost
-                print("I    " + "COST")
-            else:
-                cost_fun = self._cost
-
+            cost_fun = self._cost
+            if method_options:
+                if "verbose" in method_options:
+                    if method_options["verbose"] > 0:
+                        cost_fun = self._verbose_cost
+                        print("I    " + "COST")
+            
             optres = scipy.optimize.minimize(
                     cost_fun,    # Objective function to minimize
                     coeffs,                 # Initial guess
@@ -427,14 +428,9 @@ class Diabatizer:
                         this_matrix_domains,
                         weights
                     ),   # other arguments passed to objective function
-                    method="l-bfgs-b",
-                    options={
-                        "gtol": 1e-08,      # Termination conditions (quality)
-                        # "xtol": 1e-08,
-                        "maxiter": maxiter, # Termination condition (# iterations)
-                        # "verbose": verbose, # Printing option
-                        }
-                    )
+                    method=method,
+                    options=method_options
+            )
 
             self._Wout[i_matrix] = SymPolyMat.construct(
                     self._Ns, self._Nd, keys, optres.x, origins
