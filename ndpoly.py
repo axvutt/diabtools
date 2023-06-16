@@ -8,7 +8,7 @@ from .jsonutils import _str2tuple
 
 class NdPoly(UserDict):
     """ Multivariate polynomial in Nd dimensions of arbitrary order.
-    
+
     Dictionnary data structure whose:
         - keys are tuples of length Nd with non-negative integer entries.
             Each tuple is associated to a monomial. The k-th partial order is the k-th
@@ -23,8 +23,10 @@ class NdPoly(UserDict):
 
     def __init__(self, data):
         if len(data) == 0:
-            raise(ValueError("Cannot make empty polynomial with unknown " \
-                    + "dimensionality. Use NdPoly.empty() instead."))
+            raise ValueError(
+                "Cannot make empty polynomial with unknown"
+                "dimensionality. Use NdPoly.empty() instead."
+                )
 
         # Aliases for keys and values
         self.powers = self.keys
@@ -33,7 +35,7 @@ class NdPoly(UserDict):
         self._Nd = None
         self._x0 = None
         super().__init__(data)  # Sets Nd and degree
-        self._zeroPower = tuple([0 for _ in range(self._Nd)])
+        self._zero_power = tuple(0 for _ in range(self._Nd))
         self._x0 = np.array([0 for _ in range(self._Nd)])
 
     @property
@@ -48,7 +50,7 @@ class NdPoly(UserDict):
         for p in self:
             if self[p] != 0:
                 max_degree = max(max_degree, sum(p))
-        return max_degree 
+        return max_degree
 
     @property
     def def_degree(self):
@@ -56,12 +58,12 @@ class NdPoly(UserDict):
         max_degree = -1
         for p in self:
             max_degree = max(max_degree, sum(p))
-        return max_degree 
+        return max_degree
 
     @property
-    def zeroPower(self):
+    def zero_power(self):
         """ Return the tuple of powers of constant term, i.e. (0, ..., 0) """
-        return self._zeroPower
+        return self._zero_power
 
     @property
     def x0(self):
@@ -72,14 +74,14 @@ class NdPoly(UserDict):
         """ Transform the polynomial P(x) into Q(x) = P(x-x0)
         by setting the origin point without changing coefficients. """
         if self._Nd is None:
-            raise(RuntimeError("Cannot set origin in a polynomial of unknown dimensionality."))
+            raise RuntimeError("Cannot set origin in a polynomial of unknown dimensionality.")
         x0 = np.array(x0).flatten()
         if x0.size != self._Nd:
-            raise(ValueError(f"{x0} should be a point in {self._Nd} dimensions."))
+            raise ValueError(f"{x0} should be a point in {self._Nd} dimensions.")
         self._x0 = x0
 
     def max_partial_degrees(self):
-        return [max([powers[i] for powers in self.powers()]) \
+        return [max(powers[i] for powers in self.powers())
                 for i in range(self._Nd)]
 
     def expanded(self):
@@ -112,26 +114,26 @@ class NdPoly(UserDict):
                 if max_degs[j] == 0:
                     order.append(0)
                     continue
-                i_rem = i_left % (max_degs[j]+1)    
+                i_rem = i_left % (max_degs[j]+1)
                 i_left -= i_left // (max_degs[j]+1)
-                order.append(i_rem) 
+                order.append(i_rem)
             order = tuple(order)
 
             # Coefficient form multi-dimensional Taylor shift
             coeff = self.derivative(order)(-self._x0) \
                     / math.prod([math.factorial(order[d]) for d in range(self._Nd)])
-            
+
             # Set monomial
             P_expanded[order] = coeff
         return P_expanded
 
-    def setZeroConst(self):
+    def set_zero_const(self):
         """ Set constant term to zero.
 
         This has the effect of adding self._zeroPower to the dictionnary
         keys if it was not previously there. Equivalent to self += 0
         """
-        self[self._zeroPower] = 0
+        self[self._zero_power] = 0
 
     def grow_degree(self, degree: int, fill = 0, max_pdeg = None):
         """ Add all the terms to the polynomial up to a given degree,
@@ -160,7 +162,7 @@ class NdPoly(UserDict):
 
     def derivative(self, orders: tuple):
         """ Partial derivative of the polynomial
-        
+
         order
         tuple whose items are integers indicating the order
         of differentiation in the corresponding coordinate.
@@ -177,8 +179,9 @@ class NdPoly(UserDict):
         (NdPoly.zero(Nd)).
         """
         if len(orders) != self._Nd:
-            raise(ValueError("Invalid differentiation order of length "\
-                    + "{len(order)}, expecting {self._Nd}"))
+            raise ValueError(
+                "Invalid differentiation order of length "
+                f"{len(orders)}, expecting {self._Nd}")
 
         D = NdPoly.empty(self._Nd)
         for powers, coeff in self.items():  # Differentiate each monomial
@@ -186,7 +189,7 @@ class NdPoly(UserDict):
             for dof in range(self._Nd):
                 new_powers[dof] -= orders[dof]
             # If monomial is annihilated, go to next
-            if any([p < 0 for p in new_powers]): 
+            if any(p < 0 for p in new_powers):
                 continue
 
             # The monomial survived, compute corresponding coefficient
@@ -198,23 +201,29 @@ class NdPoly(UserDict):
 
         if len(D.powers()) == 0:
             return NdPoly.zero(self._Nd)
-        else:
-            return D
+
+        return D
 
     def remove(self, key):
         del self[key]
 
     def __setitem__(self, powers, coeff):
-        if self._Nd is None and len(powers) != 0 :
+        if self._Nd is None:
+            if len(powers) == 0 :
+                return
+            # If this is the first non-zero-dim monomial to set,
+            # it defines the dimension of the polynomial
             self._Nd = len(powers)
-        else:
-            assert len(powers) == self._Nd, f"Inappropriate powers {powers}. Expected {self._Nd} integers."
+
+        if len(powers) != self._Nd :
+            raise ValueError(f"Inappropriate powers {powers}. Expected {self._Nd} integers.")
+
         super().__setitem__(powers, coeff)
         self.data = dict(sorted(self.data.items())) # Rough sorting, may need improvement
 
     def __call__(self, x: np.ndarray):
         """ Calculate value of the polynomial at x.
-        
+
         Parameters:
         x
         N * Nd ndarray containing the values of the coordinates where to evaluate the polynomial.
@@ -231,13 +240,13 @@ class NdPoly(UserDict):
         P = np.zeros((x.shape[0],))
         for powers, coeff in self.items():
             monomial = np.ones((x.shape[0],))
-            for k in range(len(powers)):
-                monomial *= (x[:,k]-self._x0[k])**powers[k]
+            for k, p in enumerate(powers):
+                monomial *= (x[:,k]-self._x0[k])**p
             P += coeff * monomial
         if P.size == 1:
             P = P.item()
-        return P 
-    
+        return P
+
     def __repr__(self):
         s = object.__repr__(self) \
                 + f"(Nd={self._Nd},x0={self._x0},deg={self.degree},ddeg={self.def_degree})\n" \
@@ -250,7 +259,7 @@ class NdPoly(UserDict):
         if self._Nd is None:
             return f"<Empty {self.__class__} with no dimension at {hex(id(self))}.>"
 
-        if self == {}:
+        if not self:
             return f"<Empty {self.__class__} of dimension {self._Nd} at {hex(id(self))}.>"
 
         s = ""
@@ -262,7 +271,7 @@ class NdPoly(UserDict):
 
             cstr = ""
             # Write only non "1" coefficients except constant term
-            if coeff != 1 or powers == self.zeroPower :  
+            if coeff != 1 or powers == self.zero_power :
                 cstr = f"{coeff} "
 
             # + sign and coefficients
@@ -270,7 +279,7 @@ class NdPoly(UserDict):
                 s += cstr
                 first = False
             else:
-                s += f" + " + cstr
+                s += " + " + cstr
 
             for d, p in enumerate(powers):
                 if p == 0 : # Do not show variables to the 0th power
@@ -291,7 +300,7 @@ class NdPoly(UserDict):
 
         # Show value of origin shift if not zero
         if any(self._x0 != 0):
-            s += f"   |   [X0"
+            s += "   |   [X0"
             for d in range(1,self._Nd):
                 s += f" X{d}"
             s += f"] = {self._x0}"
@@ -301,10 +310,10 @@ class NdPoly(UserDict):
             for d in range(self._Nd):
                 s = s.replace(f"x{d}", xyz[d])
                 s = s.replace(f"X{d}", xyz.upper()[d])
-        
+
         return s
 
-    def __add__(self, other: Union[int,float, self.__class__]):
+    def __add__(self, other: Union[int, float, NdPoly]):
         result = deepcopy(self)
         if isinstance(other, self.__class__):
             assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
@@ -314,24 +323,26 @@ class NdPoly(UserDict):
                 else:
                     result[powers] = coeff
             return result
-        elif isinstance(other, (float, int)):
-            # Convert number to polynomial, then call __add__ recursively
-            other = NdPoly({self.zeroPower: other})
-            return self + other
-        else:
-            raise(TypeError)
 
-    def __mul__(self, other: Union[int, float, self.__class__]):
-        result = deepcopy(self)
+        if isinstance(other, (float, int)):
+            # Convert number to polynomial, then call __add__ recursively
+            other = NdPoly({self.zero_power: other})
+            return self + other
+
+        raise TypeError(f"Cannot add {self} and {other}.")
+
+    def __mul__(self, other: Union[int, float, NdPoly]):
+        # result = deepcopy(self)
         if isinstance(other, self.__class__):
             # assert np.all(self._x0 == other.x0), "Origins of added polynomials do not match."
-            raise(NotImplementedError("Product between NdPoly's not yet implemented"))
-        elif isinstance(other, (float, int)):
+            raise NotImplementedError("Product between NdPoly's not yet implemented")
+
+        if isinstance(other, (float, int)):
             for powers in self.powers():
                 self[powers] *= other
             return self
-        else:
-            raise(TypeError)
+
+        raise TypeError(f"Cannot multiply {self} and {other}.")
 
     def coeffs_to_array(self):
         """ Return monomial coefficients as a 1D np.ndarray."""
@@ -345,21 +356,21 @@ class NdPoly(UserDict):
     def empty(cls, Nd):
         """ Return an empty Nd-dimensional polynomial """
         # Dirty way: create a contant zero poly and remove the dict item
-        powers = tuple([0 for _ in range(Nd)])
-        P = cls.zero(Nd) 
+        powers = tuple(0 for _ in range(Nd))
+        P = cls.zero(Nd)
         del P[powers]
         return P
 
     @classmethod
     def zero(cls, Nd):
         """ Return a Nd-dimensional polynomial with zero constant term only """
-        powers = tuple([0 for _ in range(Nd)])
+        powers = tuple(0 for _ in range(Nd))
         return cls({powers: 0})
 
     @classmethod
     def one(cls, Nd):
         """ Return a Nd-dimensional polynomial with unit constant term only """
-        powers = tuple([0 for _ in range(Nd)])
+        powers = tuple(0 for _ in range(Nd))
         return cls({powers: 1})
 
     @classmethod
@@ -379,7 +390,7 @@ class NdPoly(UserDict):
         tuples of a given length and sum of its integer entries.
 
         Taken from https://stackoverflow.com/questions/29170953
-        
+
         Idea:
         Make 1D tuples from total to zero
         Prepend index such that the sum of the 2D tuple is total
@@ -425,7 +436,7 @@ class NdPoly(UserDict):
                 "coeffs_by_powers" : {str(p) : c for p,c in self.items()},
                 }
         return jsondct
-        
+
     @staticmethod
     def from_JSON_dict(dct) -> NdPoly:
         if "__NdPoly__" not in dct:
@@ -433,7 +444,7 @@ class NdPoly(UserDict):
 
         P = NdPoly.empty(dct["Nd"])
         P.x0 = dct["x0"]
-        
+
         # Get polynomial coefficients
         for raw_power, coeff in dct["coeffs_by_powers"].items():
             P[_str2tuple(raw_power)] = coeff

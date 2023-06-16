@@ -1,6 +1,6 @@
 from __future__ import annotations
 from copy import deepcopy
-import pickle
+import warnings
 import numpy as np
 from .ndpoly import NdPoly
 from .sympolymat import SymPolyMat
@@ -19,7 +19,7 @@ class DampedSymPolyMat(SymPolyMat):
         Construct DampedSymPolyMat from preexisting SymPolyMat.
         Copy the SymPolyMat members and set no damping of off-diagonal
         elements.
-        
+
         NB: Since no true copy constructor exists in Python, we'll do the dirty
         trick of copying all private attributes, manually.
         """
@@ -65,11 +65,6 @@ class DampedSymPolyMat(SymPolyMat):
         return False
 
     @staticmethod
-    def read_from_file(fin):
-        W = pickle.load(fin)
-        return W
-
-    @staticmethod
     def zero(Ns, Nd):
         """ Create zero matrix.
         Each matrix term is a constant monomial with zero coefficient.
@@ -103,7 +98,7 @@ class DampedSymPolyMat(SymPolyMat):
         """
         I = DampedSymPolyMat.zero(Ns, Nd)
         for i in range(Ns):
-            I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
+            I[i,i] = NdPoly({tuple(0 for _ in range(Nd)): 1})
         return I
 
     @staticmethod
@@ -120,7 +115,7 @@ class DampedSymPolyMat(SymPolyMat):
         for i in range(newmat.Ns):
             for j in range(i+1):
                 if i == j :
-                    newmat[i,j][newmat[i,j].zeroPower] = 1
+                    newmat[i,j][newmat[i,j].zero_power] = 1
         return newmat
 
     def to_JSON_dict(self) -> dict:
@@ -131,9 +126,9 @@ class DampedSymPolyMat(SymPolyMat):
                         for i in range(1, self._Ns) for j in range(i)}
                 })
         return dct
-        
+
     @staticmethod
-    def from_JSON_dict(dct) -> cls:
+    def from_JSON_dict(dct):
         if "__DampedSymPolyMat__" not in dct:
             raise KeyError("The JSON object is not a DampedSymPolyMat.")
 
@@ -148,7 +143,7 @@ class DampedSymPolyMat(SymPolyMat):
                 df = Lorentzian.from_JSON_dict(dfdct)
             else:
                 df = None
-                Warning("Unknown damping function, setting to None")
+                warnings.warn("Unknown damping function, setting to None", category=RuntimeWarning)
             M.set_damping(_str2tuple(ij), df)
 
         return M

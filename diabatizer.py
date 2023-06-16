@@ -1,11 +1,7 @@
 from __future__ import annotations
-from copy import deepcopy
 from typing import List, Tuple
-import pickle
-import json
 import numpy as np
 import scipy
-from .ndpoly import NdPoly
 from .sympolymat import SymPolyMat
 from .dampedsympolymat import DampedSymPolyMat
 from .results import Results
@@ -19,14 +15,17 @@ class Diabatizer:
         self._Nm = Nm
         if diab_guess is not None:
             if len(diab_guess) != Nm:
-                raise ValueError("Inconsistent number of matrices {} vs number of given guesses {}.".format(Nm, len(diab_guess)))
+                raise ValueError(
+                    f"Inconsistent number of matrices {Nm}"
+                    f"vs number of given guesses {len(diab_guess)}."
+                    )
             self._Wguess = diab_guess
         else :
             self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
         self._Wout = self._Wguess
-        self._x = dict()
-        self._energies = dict()
-        self._states_by_domain = [dict() for _ in range(Nm)]
+        self._x = {}
+        self._energies = {}
+        self._states_by_domain = [{} for _ in range(Nm)]
         self._domain_IDs = set()
         self._Ndomains = 0
         self._last_domain_ID = 0
@@ -34,9 +33,9 @@ class Diabatizer:
         self._wfun_coord = None
         self._wfun_energy = None
         self._manually_weighted_domains = set()
-        self._weights = dict()
-        self._weights_coord = dict()
-        self._weights_energy = dict()
+        self._weights = {}
+        self._weights_coord = {}
+        self._weights_energy = {}
         self._print_every = 50
         self._n_cost_calls = 0
         self._last_residuals = np.array([])
@@ -103,7 +102,7 @@ class Diabatizer:
 
     def add_domain(self, x: np.ndarray, en: np.ndarray):
         """ Add N points to the database of energies to be fitted
-        
+
         Parameters
         x
         np.ndarray of size Nd*N containing coordinates of the points to add
@@ -121,31 +120,41 @@ class Diabatizer:
             x = x.T
         if self._Ns == 1 and en.shape[0] == 1:
             en = en.T
-        assert x.shape[1] == self._Nd, "Wrong coord. array dimensions, " \
-                + "{x.shape[1]} vars, expected {self._Nd}."
-        assert en.shape[1] == self._Ns, "Wrong energy array dimensions " \
-                + f"{en.shape[1]} states, expected {self._Ns}."
-        assert x.shape[0] == en.shape[0], "Coordinates vs energies "\
-                + "dimensions mismatch."
-        id_domain = self._last_domain_ID
-        self._domain_IDs.add(id_domain)
-        self._x[id_domain] = x
-        self._weights_coord[id_domain] = np.ones((x.shape[0],1))
-        self._energies[id_domain] = en
-        self._weights_energy[id_domain] = np.ones_like(en)
+
+        if x.shape[1] != self._Nd:
+            raise ValueError(
+                "Wrong coord. array dimensions, "
+                f"{x.shape[1]} vars, expected {self._Nd}."
+                )
+        if en.shape[1] != self._Ns:
+            raise ValueError(
+                "Wrong energy array dimensions "
+                f"{en.shape[1]} states, expected {self._Ns}."
+                )
+        if x.shape[0] != en.shape[0]:
+            raise ValueError("Coordinates vs energies dimensions mismatch.")
+
+        id_ = self._last_domain_ID
+        self._domain_IDs.add(id_)
+        self._x[id_] = x
+        self._weights_coord[id_] = np.ones((x.shape[0],1))
+        self._energies[id_] = en
+        self._weights_energy[id_] = np.ones_like(en)
+        self._weights[id_] = self._weights_coord[id_] * self._weights_energy[id_]
         self._Ndomains += 1
         self._last_domain_ID += 1
-        return id_domain
+        return id_
 
-    def remove_domain(id_domain):
-        self._domains.remove(id_domain)
-        self._x.pop(id_domain)
-        self._energies.pop(id_domain)
-        self._weights_coord.pop(id_domain)
-        self._weights_energy.pop(id_domain)
-        self._weights.pop(id_domain)
-        for i_matrix in self._Nm:
-            self._fitDomains[i_matrix].pop(id_domain)
+    def remove_domain(self, id_):
+        self._domain_IDs.remove(id_)
+        self._x.pop(id_)
+        self._energies.pop(id_)
+        self._weights_coord.pop(id_)
+        self._weights_energy.pop(id_)
+        self._weights.pop(id_)
+        for states_selection_per_matrix in self._states_by_domain:
+            if id_ in states_selection_per_matrix:
+                states_selection_per_matrix.pop(id_)
         self._Ndomains -= 1
 
     def set_fit_domain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
@@ -153,13 +162,18 @@ class Diabatizer:
         should fit.
         """
         if states is None:
-            states = tuple([s for s in range(self._Ns)])
+            states = tuple(s for s in range(self._Ns))
 
-        assert n_matrix < self._Nm, "Matrix index should be less than " \
-            + f"{self._Nm}, got {n_matrix}."
-        assert all([0 <= s < self._Ns for s in states]), "One of specified " \
-            + f"states {states} is out of range, " \
-            + f"should be 0 <= s < {self._Ns}."
+        if n_matrix >= self._Nm:
+            raise ValueError(
+                "Matrix index should be less than "
+                f"{self._Nm}, got {n_matrix}."
+                )
+        if any(s < 0 or self._Ns <= s for s in states):
+            raise ValueError(
+                f"One of specified states {states} is out of range, "
+                f"should be 0 <= s < {self._Ns}."
+                )
 
         self._states_by_domain[n_matrix][id_domain] = states
         self._auto_fit = False
@@ -188,7 +202,9 @@ class Diabatizer:
         elif apply_to == "coord":
             self._wfun_coord = wfun
         else:
-            raise ValueError("Weighting function must be applied to either \'coord\' or \'energy\'.")
+            raise ValueError(
+                    "Weighting function must be applied to either \'coord\' or \'energy\'."
+                    )
 
     def set_gauss_wfun(self, mu, sigma, apply_to):
         """ Set Gaussian weighting function for the residuals
@@ -196,21 +212,20 @@ class Diabatizer:
         w = exp(- 1/2 ((y-mu)/sigma)**2 )
         """
         self.set_weight_function(lambda y: np.exp(-0.5*((y-mu)/sigma)**2), apply_to)
-    
+
     def set_gaussband_wfun(self, mu, sigma, apply_to):
         """ Set band weighting function for the residuals, with Gaussian tails
 
         w = 1 if mu[0] < y < mu[1]
-        otherwise:        
+        otherwise:
         w = exp(- 1/2 ((y-mu[i])/sigma[i])**2 ), i=0,1 if y<mu[0],mu[1] resp
         """
         def gaussband(y, mu_down, mu_up, sigma_down, sigma_up):
             if y < mu_down:
                 return np.exp(-0.5*((y-mu_down)/sigma_down)**2)
-            elif y > mu_up:
+            if y > mu_up:
                 return np.exp(-0.5*((y-mu_up)/sigma_up)**2)
-            else:
-                return 1
+            return 1
         self.set_weight_function(lambda y: gaussband(y, mu[0], mu[1], sigma[0], sigma[1]), apply_to)
 
     def set_exp_wfun(self, x0, beta, apply_to):
@@ -231,10 +246,9 @@ class Diabatizer:
         def expband(y, y_down, y_up, beta_down, beta_up):
             if y < y_down:
                 return np.exp((y-y_down)/beta_down)
-            elif y > y_up:
-                return np.exp(-(y-mu_up)/beta_up)
-            else:
-                return 1
+            if y > y_up:
+                return np.exp(-(y-y_up)/beta_up)
+            return 1
         self.set_weight_function(lambda y: expband(y, x0[0], x0[1], beta[0], beta[1]), apply_to)
 
     def compute_weights(self):
@@ -260,10 +274,6 @@ class Diabatizer:
         reference adiabatic energies and those deduced from of all
         current diabatic matrices in Wout, within the associated domains
         """
-        rmse_list = []
-        wrmse_list = []
-        mae_list = []
-        wmae_list = []
 
         # Compute errors for each matrix
         for im in range(self._Nm):
@@ -274,7 +284,7 @@ class Diabatizer:
             for id_, states in self.states_by_domain[im].items():
                 x = self._x[id_]
                 Wx = self._Wout[im](x)
-                Vx, Sx = adiabatic(Wx)
+                Vx, _ = adiabatic(Wx)
 
                 # Compute residual against selected states over the domain
                 for s in states:
@@ -316,7 +326,7 @@ class Diabatizer:
             # Compute adiabatic potential from diabatic ansatz
             x = self._x[id_]
             Wx = W(x)
-            Vx, Sx = adiabatic(Wx)
+            Vx, _ = adiabatic(Wx)
 
             # Retreive data energies and compute (weighted) residuals over the domain
             for s in states:
@@ -354,7 +364,7 @@ class Diabatizer:
         self._last_residuals = res
         wrmse = wRMSE(res, weights)
         return wrmse
-    
+
     def _verbose_cost(self, c, keys, x0s, domains, weights):
         """ Wrapper of cost function which also prints out optimization progress. """
         wrmse = self._cost(c, keys, x0s, domains, weights)
@@ -362,7 +372,7 @@ class Diabatizer:
         if n % self._print_every == 0:
             rmse = RMSE(self._last_residuals)
             mae = MAE(self._last_residuals)
-            wmae = wMAE(self._last_residuals, weights) 
+            wmae = wMAE(self._last_residuals, weights)
             print("{:<10d} {:12.8e} {:12.8e} {:12.8e} {:12.8e}".format(n,wrmse,rmse,wmae,mae))
         return wrmse
 
@@ -384,7 +394,7 @@ class Diabatizer:
 
         # Compute weights associated to points
         self.compute_weights()
-        
+
         # Run a separate optimization for each diabatic matrix
         for i_matrix in range(self._Nm):
             self._results[i_matrix].reset()
@@ -407,26 +417,33 @@ class Diabatizer:
                 print("I    " + "COST")
             else:
                 cost_fun = self._cost
-            
+
             optres = scipy.optimize.minimize(
                     cost_fun,    # Objective function to minimize
                     coeffs,                 # Initial guess
-                    args=(keys, origins, this_matrix_domains, weights),   # other arguments passed to objective function
+                    args=(
+                        keys,
+                        origins,
+                        this_matrix_domains,
+                        weights
+                    ),   # other arguments passed to objective function
                     method="l-bfgs-b",
                     # method="trust-constr",
                     options={
                         "gtol": 1e-08,      # Termination conditions (quality)
                         # "xtol": 1e-08,
-                        "maxiter": maxiter, # Termination condition (# iterations) 
+                        "maxiter": maxiter, # Termination condition (# iterations)
                         # "verbose": verbose, # Printing option
                         }
                     )
-            
-            self._Wout[i_matrix] = SymPolyMat.construct(self._Ns, self._Nd, keys, optres.x, origins)
+
+            self._Wout[i_matrix] = SymPolyMat.construct(
+                    self._Ns, self._Nd, keys, optres.x, origins
+            )
             self._results[i_matrix].from_OptimizeResult(optres)
 
         self.compute_errors()
-        
+
         return self._Wout
 
     def to_JSON_dict(self):
@@ -438,7 +455,8 @@ class Diabatizer:
                 "Wguess"                    : [Wg.to_JSON_dict() for Wg in self._Wguess],
                 "Wout"                      : [Wo.to_JSON_dict() for Wo in self._Wout],
                 "x"                         : {id_ : x.tolist() for id_,x in self._x.items()},
-                "energies"                  : {id_ : e.tolist() for id_,e in self._energies.items()},
+                "energies"                  : {id_ : e.tolist()
+                                                    for id_,e in self._energies.items()},
                 "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()}
                                                     for dct in self._states_by_domain],
                 "domain_IDs"                : list(self._domain_IDs),
@@ -448,9 +466,12 @@ class Diabatizer:
                 "wfun_coord"                : None, # self._wfun_coord,
                 "wfun_energy"               : None, # self._wfun_energy,
                 "manually_weighted_domains" : list(self._manually_weighted_domains),
-                "weights"                   : {id_: w.tolist() for id_, w in self._weights.items()},
-                "weights_coord"             : {id_: w.tolist() for id_, w in self._weights_coord.items()},
-                "weights_energy"            : {id_: w.tolist() for id_, w in self._weights_energy.items()},
+                "weights"                   : {id_: w.tolist()
+                                                    for id_, w in self._weights.items()},
+                "weights_coord"             : {id_: w.tolist()
+                                                    for id_, w in self._weights_coord.items()},
+                "weights_energy"            : {id_: w.tolist()
+                                                    for id_, w in self._weights_energy.items()},
                 "print_every"               : self._print_every,
                 "n_cost_calls"              : self._n_cost_calls,
                 "last_residuals"            : self._last_residuals.tolist(),
@@ -516,10 +537,6 @@ class SingleDiabatizer(Diabatizer):
 
     def mae(self):
         return super().results[0].mae
-
-    @property
-    def fit(self):
-        return self._fit[0]
 
     @property
     def Wguess(self):

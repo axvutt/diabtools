@@ -16,7 +16,7 @@ class TestPoly:
         assert E.Nd == 3
         assert len(E.powers()) == 0
         assert len(E.keys()) == 0
-        assert E.zeroPower == (0,0,0)
+        assert E.zero_power == (0,0,0)
         assert np.all(E.x0 == np.array([0,0,0]))
         assert E([1.,2.,3.]) == 0
         assert np.all(E(np.random.rand(10,3)) == np.zeros((10,)))
@@ -26,9 +26,9 @@ class TestPoly:
     def test_Zero(self):
         P = NdPoly.zero(3)
         X = np.repeat(self.testdata, 3, 1)
-        assert P.zeroPower == (0,0,0)
-        assert list(P.powers()) == [P.zeroPower]
-        assert P[P.zeroPower] == 0
+        assert P.zero_power == (0,0,0)
+        assert list(P.powers()) == [P.zero_power]
+        assert P[P.zero_power] == 0
         assert np.all(P(X) == 0)
         assert P.degree == -1
         assert P.def_degree == 0
@@ -36,9 +36,9 @@ class TestPoly:
     def test_One(self):
         P = NdPoly.one(3)
         X = np.repeat(self.testdata, 3, 1)
-        assert P.zeroPower == (0,0,0)
-        assert list(P.powers()) == [P.zeroPower]
-        assert P[P.zeroPower] == 1
+        assert P.zero_power == (0,0,0)
+        assert list(P.powers()) == [P.zero_power]
+        assert P[P.zero_power] == 1
         assert np.all(P(X) == 1)
         assert P.degree == 0
         assert P.def_degree == 0
@@ -68,11 +68,11 @@ class TestPoly:
     def test_AddConstant(self):
         P = NdPoly({(1,0,0): 1, (0,1,0): 3.14, (0,0,1): -1})
         Q = P + 1.23
-        assert Q[Q.zeroPower] == 1.23
+        assert Q[Q.zero_power] == 1.23
         Q += 1
-        assert Q[Q.zeroPower] == 2.23
+        assert Q[Q.zero_power] == 2.23
         P += 1
-        assert P[P.zeroPower] == 1
+        assert P[P.zero_power] == 1
         assert P.degree == 1
         assert P.def_degree == 1
         assert Q.degree == 1
@@ -106,7 +106,7 @@ class TestPoly:
 
     def test_PolyBadSet(self):
         P = NdPoly({(1,2,3): 0.1, (3,0,0): 3.14})
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             P[(1,2)] = 3
 
     def test_powersCoeffs(self):

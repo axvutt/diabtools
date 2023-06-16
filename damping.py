@@ -1,5 +1,5 @@
 import math
-from abc import ABC, abstractmethod 
+from abc import ABC, abstractmethod
 import numpy as np
 
 class DampingFunction(ABC):
@@ -30,8 +30,9 @@ class DampingFunction(ABC):
         return {"__DampingFunction__": True, "x0": self._x0}
 
     @staticmethod
+    @abstractmethod
     def from_JSON_dict(dct):
-        return None
+        pass 
 
 
 class One(DampingFunction):

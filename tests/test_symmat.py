@@ -26,7 +26,7 @@ class TestSymMat:
         Ns = 3
         Nd = 4
         M = SymPolyMat.zero(Ns, Nd)
-        assert all([list(m.powers()) == [m.zeroPower] for m in M])
+        assert all([list(m.powers()) == [m.zero_power] for m in M])
         assert all([list(m.coeffs()) == [0] for m in M])
         assert all([m.Nd == Nd for m in M])
 
@@ -48,7 +48,7 @@ class TestSymMat:
         Ns = 3
         Nd = 2
         I = SymPolyMat.eye(Ns,Nd)
-        assert all([list(i.powers()) == [i.zeroPower] for i in I])
+        assert all([list(i.powers()) == [i.zero_power] for i in I])
         assert all([list(I[i,j].coeffs()) == [0] for i in range(Ns) for j in range(i)])
         assert all([list(I[i,i].coeffs()) == [1] for i in range(Ns)])
 
@@ -65,7 +65,7 @@ class TestSymMat:
         B = SymPolyMat.eye_like(A)
         assert all([list(B[i,j].powers()) == list(A[i,j].powers()) for i in range(Ns) for j in range(i)])
         assert all([a_power in B[i,i] for i in range(Ns) for a_power in list(A[i,i].powers())])
-        assert all([B[i,i][B[i,i].zeroPower] == 1 for i in range(Ns)])
+        assert all([B[i,i][B[i,i].zero_power] == 1 for i in range(Ns)])
      
     def test_Call(self):
         Ns = 5

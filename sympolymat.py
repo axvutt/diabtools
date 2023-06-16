@@ -69,7 +69,7 @@ class SymPolyMat():
         return np.hstack(tuple(coeffs)), keys
 
     @classmethod
-    def construct(cls, Ns, Nd, keys, coeffs, dict_x0={}):
+    def construct(cls, Ns, Nd, keys, coeffs, dict_x0 = None):
         """ Reconstruct matrix from flat list of coefficients
         Parameters:
         * Ns : integer, number of states
@@ -94,10 +94,11 @@ class SymPolyMat():
             W[i,j][powers] = coeffs[n]
 
         # Shifts
-        W.set_x0_by_ij(dict_x0)
+        if dict_x0:
+            W.set_x0_by_ij(dict_x0)
 
         return W
-    
+
     def __iter__(self):
         return self._polys.__iter__()
 
@@ -131,8 +132,8 @@ class SymPolyMat():
             for j in range(i+1):
                 s += f"({i},{j}): {self[i,j].__repr__()}" + "\n"
         return s
-   
-    def __str__(self): 
+
+    def __str__(self):
         s = ""
         for i in range(self._Ns):
             for j in range(i+1):
@@ -147,21 +148,22 @@ class SymPolyMat():
         if isinstance(other, self.__class__):
             if (self.Nd == other.Nd
                     and self.Ns == other.Ns
-                    and all([a == b for a,b in zip(self, other)])):
+                    and all(a == b for a,b in zip(self, other))):
                 return True
         return False
 
     def write_to_txt(self, filename):
         with open(filename, "w") as fout:
-            fout.write(self.__str__())
+            fout.write(str(self))
 
     @staticmethod
     def read_from_txt(filename):
         # with open(filename, "r") as fin:
         # return W
-        NotImplementedError(
-            "Reading from text file is not possible yet. " \
-            + "Please load from binary file using read_from_file().")
+        raise NotImplementedError(
+            "Reading from text file is not possible yet. "
+            "Please load from binary file using read_from_file()."
+            )
 
     def write_to_file(self, filename):
         with open(filename, "wb") as fout:
@@ -206,7 +208,7 @@ class SymPolyMat():
         """
         I = cls.zero(Ns, Nd)
         for i in range(Ns):
-            I[i,i] = NdPoly({tuple([0 for _ in range(Nd)]): 1})
+            I[i,i] = NdPoly({tuple(0 for _ in range(Nd)): 1})
         return I
 
     @classmethod
@@ -222,7 +224,7 @@ class SymPolyMat():
         for i in range(newmat.Ns):
             for j in range(i+1):
                 if i == j :
-                    newmat[i,j][newmat[i,j].zeroPower] = 1
+                    newmat[i,j][newmat[i,j].zero_power] = 1
         return newmat
 
     def save_to_JSON(self, fname) -> None:
@@ -238,7 +240,7 @@ class SymPolyMat():
                         for i in range(self.Ns) for j in range(i+1)}
                 }
         return dct
-        
+
     @classmethod
     def load_from_JSON(cls, fname) -> cls:
         with open(fname, "r") as f:
