@@ -1,4 +1,6 @@
+import math
 from abc import ABC, abstractmethod 
+import numpy as np
 
 class DampingFunction(ABC):
     """ Abstract base class for damping functions

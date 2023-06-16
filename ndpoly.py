@@ -1,8 +1,10 @@
+from __future__ import annotations
 from copy import deepcopy
 from typing import Union
 from collections import UserDict
 import math
 import numpy as np
+from .jsonutils import _str2tuple
 
 class NdPoly(UserDict):
     """ Multivariate polynomial in Nd dimensions of arbitrary order.

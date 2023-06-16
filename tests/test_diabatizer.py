@@ -1,9 +1,15 @@
+from copy import deepcopy
+import math
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from ..diabatizer import Diabatizer, SingleDiabatizer
+import pytest
+from ..ndpoly import NdPoly
+from ..sympolymat import SymPolyMat
+from ..dampedsympolymat import DampedSymPolyMat
+from ..diabatizer import Diabatizer, SingleDiabatizer, adiabatic, adiabatic2 
 
-class TestDiabatizer
+class TestDiabatizer:
     def test_LiF(self, pytestconfig):
         import ConstantsSI as SI
         import matplotlib.pyplot as plt

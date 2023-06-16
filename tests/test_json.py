@@ -3,6 +3,7 @@ import pytest
 import json
 from ..ndpoly import NdPoly
 from ..sympolymat import SymPolyMat
+from ..damping import Gaussian
 from ..dampedsympolymat import DampedSymPolyMat
 from ..diabatizer import Diabatizer
 

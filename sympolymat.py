@@ -1,8 +1,10 @@
+from __future__ import annotations
 from copy import deepcopy
 import pickle
 import json
 import numpy as np
 from .ndpoly import NdPoly
+from .jsonutils import _str2tuple
 
 class SymPolyMat():
     """ Real symmetric matrix of multivariate polynomial functions """

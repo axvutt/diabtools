@@ -1,11 +1,11 @@
 import json
-from .ndpoly import NdPoly
-from .sympolymat import SymPolyMat
-from .dampedsympolymat import DampedSymPolyMat
-from .damping import DampingFunction, One, Gaussian, Lorentzian
-from .diabatizer import Diabatizer
-from .results import Results
-from .ndpoly import NdPoly
+# from .ndpoly import NdPoly
+# from .sympolymat import SymPolyMat
+# from .dampedsympolymat import DampedSymPolyMat
+# from .damping import DampingFunction, One, Gaussian, Lorentzian
+# from .diabatizer import Diabatizer
+# from .results import Results
+# from .ndpoly import NdPoly
 
 def _str2tuple(s):
     """

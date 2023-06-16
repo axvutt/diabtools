@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import pytest
+from ..ndpoly import NdPoly
 from ..sympolymat import SymPolyMat
 
 class TestSymMat:

@@ -1,8 +1,11 @@
+from __future__ import annotations
 from copy import deepcopy
 import pickle
 import numpy as np
+from .ndpoly import NdPoly
 from .sympolymat import SymPolyMat
-from .dampingfunction import DampingFunction
+from .damping import DampingFunction, Gaussian, Lorentzian, One
+from .jsonutils import _str2tuple
 
 class DampedSymPolyMat(SymPolyMat):
     """ Symmetric Matrix of Polynomials, with damping functions """

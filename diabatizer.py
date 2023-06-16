@@ -1,12 +1,16 @@
+from __future__ import annotations
 from copy import deepcopy
 from typing import List, Tuple
 import pickle
 import json
 import numpy as np
 import scipy
+from .ndpoly import NdPoly
 from .sympolymat import SymPolyMat
+from .dampedsympolymat import DampedSymPolyMat
 from .results import Results
 from .jsonutils import _str2tuple
+from .diagnostics import RMSE, wRMSE, MAE, wMAE
 
 class Diabatizer:
     def __init__(self, Ns, Nd, Nm, diab_guess: List[SymPolyMat] = None):
