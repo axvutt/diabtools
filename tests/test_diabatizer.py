@@ -547,15 +547,17 @@ class TestDiabatizer:
         Wx = W(x_data)
         Vx, _ = adiabatic(Wx)
         error = np.hstack((Vx[:,0] - V_t[:,0], Vx[:,1] - V_t[:,1]))
+
+        # Show the result if verbose test
+        if pytestconfig.getoption("verbose") > 0:
+            self.plot_2d2s_testVSfit(X,Y,W_test_x,V_t,Wx)
+
+        # Assert
         assert math.isclose(test2d2s.rmse(), np.sqrt(np.dot(error, error)/(2*len(x_data))))
         assert math.isclose(test2d2s.mae(), np.sum(np.abs(error))/(2*len(x_data)))
         for w, wt in zip(W,W_test):
             for c, ct in zip(w.coeffs(), wt.coeffs()):
                 assert abs(c-ct) < 1E-10
-
-        # Show the result if verbose test
-        if pytestconfig.getoption("verbose") > 0:
-            self.plot_2d2s_testVSfit(X,Y,W_test_x,V_t,Wx)
 
     def test_2d3s(self, pytestconfig):
         """ Three states, two dimensions.
@@ -599,6 +601,12 @@ class TestDiabatizer:
         test2d3s.optimize()
         W = test2d3s.Wout
 
+        # Show the result if verbose test
+        if pytestconfig.getoption("verbose") > 0:
+            Wx = W(x_data)
+            self.plot_2d3s_testVSfit(X,Y,W_test_x,V_t,Wx)
+
+        # Assert
         for i in range(3):
             for c, ct in zip(W[i,i].coeffs(), W_test[i,i].coeffs()):
                 assert abs(c-ct) < 1E-10
@@ -606,10 +614,6 @@ class TestDiabatizer:
                 for c, ct in zip(W[i,j].coeffs(), W_test[i,j].coeffs()):
                     assert abs(abs(c)-abs(ct)) < 1E-10
 
-        # Show the result if verbose test
-        if pytestconfig.getoption("verbose") > 0:
-            Wx = W(x_data)
-            self.plot_2d3s_testVSfit(X,Y,W_test_x,V_t,Wx)
 
     def test_1d2s_crossing(self, pytestconfig):
         """ Two states, one dimension, two distinct avoided crossings

@@ -380,7 +380,7 @@ class Diabatizer:
         self._n_cost_calls += 1
         return self._n_cost_calls
 
-    def optimize(self, verbose=0, maxiter=1000):
+    def optimize(self, method="l-bfgs-b", verbose=0, maxiter=1000):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -428,7 +428,6 @@ class Diabatizer:
                         weights
                     ),   # other arguments passed to objective function
                     method="l-bfgs-b",
-                    # method="trust-constr",
                     options={
                         "gtol": 1e-08,      # Termination conditions (quality)
                         # "xtol": 1e-08,
