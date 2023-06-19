@@ -35,7 +35,7 @@ class TestJSON:
         D = DampedSymPolyMat.from_SymPolyMat(spm_ex)
         for i in range(spm_ex.Ns):
             for j in range(i):
-                D.set_damping((i,j), damp_ex)
+                D.set_damping((i,j), 0, damp_ex)
         return D
 
     @pytest.fixture(scope="class", params=["spm_ex", "dspm_ex"])

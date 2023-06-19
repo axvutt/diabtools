@@ -40,7 +40,8 @@ class TestDampedSymMat:
         W[2,2][0,2] = 1.
         W[1,2].x0 = [0., 0.] 
         W[1,2][1,0] = 1.
-        W.set_damping((1,2), lambda x: Gaussian(0,1)(x[:,0]))
+        W.set_damping((1,2), 0, Gaussian(0,1))
+        W.set_damping((1,2), 1, Gaussian(0,0.5))
 
         x = np.linspace(-2,2,101)
         y = np.linspace(-2,2,101)
