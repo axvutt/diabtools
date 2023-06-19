@@ -64,8 +64,8 @@ class DampedSymPolyMat(SymPolyMat):
         Dx = np.ones(Wx.shape)
         for i in range(1, self._Ns):   # Compute off-diag lower triangular part
             for j in range(i):
-                for d in range(self._Nd):
-                    f = self.get_damping((i,j), d)
+                for axis in range(self._Nd):
+                    f = self.get_damping((i,j), axis)
                     if f:
                         Dx[:,i,j] *= f(x[:,axis])
                         Dx[:,j,i] = Dx[:,i,j]
@@ -134,11 +134,21 @@ class DampedSymPolyMat(SymPolyMat):
 
     def to_JSON_dict(self) -> dict:
         dct = super().to_JSON_dict()
+        damping_dct = {}
+        for i in range(1, self._Ns):
+            for j in range(i):
+                flist = []
+                for axis in range(self._Nd):
+                    f = self.get_damping((i,j),axis)
+                    if f:
+                        flist.append(f.to_JSON_dict())
+                    else:
+                        flist.append(None)
+                damping_dct[f"({i}, {j})"] = flist
         dct.update({
-                "__DampedSymPolyMat__" : True,
-                "damping" : {f"({i}, {j})": self.get_damping((i,j)).to_JSON_dict() \
-                        for i in range(1, self._Ns) for j in range(i)}
-                })
+            "__DampedSymPolyMat__" : True,
+            "damping" : damping_dct
+        })
         return dct
 
     @staticmethod
@@ -148,16 +158,19 @@ class DampedSymPolyMat(SymPolyMat):
 
         M = SymPolyMat.from_JSON_dict(dct)
         M = DampedSymPolyMat.from_SymPolyMat(M)
-        for ij, dfdct in dct["damping"].items():
-            if "__One__" in dfdct:
-                df = One.from_JSON_dict(dfdct)
-            if "__Gaussian__" in dfdct:
-                df = Gaussian.from_JSON_dict(dfdct)
-            elif "__Lorentzian__" in dfdct:
-                df = Lorentzian.from_JSON_dict(dfdct)
-            else:
-                df = None
-                warnings.warn("Unknown damping function, setting to None", category=RuntimeWarning)
-            M.set_damping(_str2tuple(ij), df)
+        for ij, flist in dct["damping"].items():
+            pos = _str2tuple(ij)
+            for axis, fdct in enumerate(flist):
+                if "__One__" in fdct:
+                    f = One.from_JSON_dict(fdct)
+                if "__Gaussian__" in fdct:
+                    f = Gaussian.from_JSON_dict(fdct)
+                elif "__Lorentzian__" in fdct:
+                    f = Lorentzian.from_JSON_dict(fdct)
+                else:
+                    f = None
+                    warnings.warn("Unknown damping function, setting to None",
+                        category=RuntimeWarning)
+                M.set_damping(pos, axis, f)
 
         return M
