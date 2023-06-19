@@ -11,7 +11,7 @@ class DampedSymPolyMat(SymPolyMat):
     """ Symmetric Matrix of Polynomials, with damping functions """
     def __init__(self, Ns, Nd):
         super().__init__(Ns, Nd)
-        self._damp = [One() for i in range(1,Ns) for j in range(i)]
+        self._damp = [[None for _ in range(Nd)] for i in range(1,Ns) for j in range(i)]
 
     @classmethod
     def from_SymPolyMat(cls, other: SymPolyMat):
@@ -31,19 +31,30 @@ class DampedSymPolyMat(SymPolyMat):
         if i == j:
             raise IndexError("Diagonal elements not allowed")
 
-    def set_damping(self, pos, dfun: DampingFunction):
-        self._check_indices(*pos)
-        i, j = pos
-        if j > i :
-            i, j = j, i
-        self._damp[i*(i-1)//2 + j] = dfun
+    def _check_axis(self, axis):
+        if axis < 0 or axis >= self._Nd:
+            raise IndexError(
+                f"Axis argument out of range. Got {axis}, expecting 0 <= axis < {self._Nd}."
+            )
 
-    def get_damping(self, pos) -> DampingFunction:
+    def set_damping(self, pos, axis, dfun: DampingFunction):
         self._check_indices(*pos)
+        self._check_axis(axis)
         i, j = pos
         if j > i :
             i, j = j, i
-        return self._damp[i*(i-1)//2 + j]
+        self._damp[i*(i-1)//2 + j][axis] = dfun
+
+    def reset_damping(self, pos, axis):
+        self.set_damping(pos, axis, None)
+
+    def get_damping(self, pos, axis) -> DampingFunction:
+        self._check_indices(*pos)
+        self._check_axis(axis)
+        i, j = pos
+        if j > i :
+            i, j = j, i
+        return self._damp[i*(i-1)//2 + j][axis]
 
     def __call__(self, x):
         x = np.atleast_2d(x)
@@ -53,8 +64,11 @@ class DampedSymPolyMat(SymPolyMat):
         Dx = np.ones(Wx.shape)
         for i in range(1, self._Ns):   # Compute off-diag lower triangular part
             for j in range(i):
-                Dx[:,i,j] = self.get_damping((i,j))(x)
-                Dx[:,j,i] = Dx[:,i,j]
+                for d in range(self._Nd):
+                    f = self.get_damping((i,j), d)
+                    if f:
+                        Dx[:,i,j] *= f(x[:,axis])
+                        Dx[:,j,i] = Dx[:,i,j]
         return Wx * Dx
 
     def __eq__(self, other):
