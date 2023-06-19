@@ -161,16 +161,19 @@ class DampedSymPolyMat(SymPolyMat):
         for ij, flist in dct["damping"].items():
             pos = _str2tuple(ij)
             for axis, fdct in enumerate(flist):
-                if "__One__" in fdct:
-                    f = One.from_JSON_dict(fdct)
-                if "__Gaussian__" in fdct:
-                    f = Gaussian.from_JSON_dict(fdct)
-                elif "__Lorentzian__" in fdct:
-                    f = Lorentzian.from_JSON_dict(fdct)
+                if fdct:
+                    if "__One__" in fdct:
+                        f = One.from_JSON_dict(fdct)
+                    if "__Gaussian__" in fdct:
+                        f = Gaussian.from_JSON_dict(fdct)
+                    elif "__Lorentzian__" in fdct:
+                        f = Lorentzian.from_JSON_dict(fdct)
+                    else:
+                        f = None
+                        warnings.warn("Unknown damping function, setting to None",
+                            category=RuntimeWarning)
                 else:
                     f = None
-                    warnings.warn("Unknown damping function, setting to None",
-                        category=RuntimeWarning)
                 M.set_damping(pos, axis, f)
 
         return M
