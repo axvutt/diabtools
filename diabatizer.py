@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Tuple
+from typing import Tuple
 import numpy as np
 import scipy
 from .sympolymat import SymPolyMat
@@ -9,23 +9,17 @@ from .jsonutils import _str2tuple
 from .diagnostics import RMSE, wRMSE, MAE, wMAE
 
 class Diabatizer:
-    def __init__(self, Ns, Nd, Nm, diab_guess: List[SymPolyMat] = None):
+    def __init__(self, Ns, Nd, diab_guess = None):
         self._Nd = Nd
         self._Ns = Ns
-        self._Nm = Nm
-        if diab_guess is not None:
-            if len(diab_guess) != Nm:
-                raise ValueError(
-                    f"Inconsistent number of matrices {Nm}"
-                    f"vs number of given guesses {len(diab_guess)}."
-                    )
+        if diab_guess:
             self._Wguess = diab_guess
         else :
-            self._Wguess = [SymPolyMat.eye(Ns, Nd) for _ in range(Nm)]
+            self._Wguess = SymPolyMat.eye(Ns, Nd)
         self._Wout = self._Wguess
         self._x = {}
         self._energies = {}
-        self._states_by_domain = [{} for _ in range(Nm)]
+        self._states_by_domain = {}
         self._domain_IDs = set()
         self._Ndomains = 0
         self._last_domain_ID = 0
@@ -39,7 +33,7 @@ class Diabatizer:
         self._print_every = 50
         self._n_cost_calls = 0
         self._last_residuals = np.array([])
-        self._results = [Results() for _ in range(Nm)]
+        self._results = Results()
 
     @property
     def x(self):
@@ -77,9 +71,9 @@ class Diabatizer:
         """ Get number of states """
         return self._Ns
 
-    def n_fitted_points(self, i_matrix):
+    def n_fitted_points(self):
         Npts = 0
-        for dom_id, states in self._states_by_domain[i_matrix].items():
+        for dom_id, states in self._states_by_domain.items():
             Npts += len(self._x[dom_id]) * len(states)
         return Npts
 
@@ -152,35 +146,28 @@ class Diabatizer:
         self._weights_coord.pop(id_)
         self._weights_energy.pop(id_)
         self._weights.pop(id_)
-        for states_selection_per_matrix in self._states_by_domain:
-            if id_ in states_selection_per_matrix:
-                states_selection_per_matrix.pop(id_)
+        self._states_by_domain.pop(id_)
         self._Ndomains -= 1
 
-    def set_fit_domain(self, n_matrix: int, id_domain: int, states: Tuple[int, ...] = None):
+    def set_fit_domain(self, id_: int, states: Tuple[int, ...] = None):
         """ Specify the domain and states that a diabatic potential matrix
         should fit.
         """
         if states is None:
             states = tuple(s for s in range(self._Ns))
 
-        if n_matrix >= self._Nm:
-            raise ValueError(
-                "Matrix index should be less than "
-                f"{self._Nm}, got {n_matrix}."
-                )
         if any(s < 0 or self._Ns <= s for s in states):
             raise ValueError(
                 f"One of specified states {states} is out of range, "
                 f"should be 0 <= s < {self._Ns}."
                 )
 
-        self._states_by_domain[n_matrix][id_domain] = states
+        self._states_by_domain[id_] = states
         self._auto_fit = False
 
-    def set_fit_all_domain(self, n_matrix: int):
+    def set_fit_all_domain(self):
         for idd in self._domain_IDs:
-            self.set_fit_domain(n_matrix, idd)
+            self.set_fit_domain(idd)
 
     def set_domain_weight(self, id_domain, weight):
         """ Assign a fixed weight to a coordinate domain. """
@@ -275,30 +262,28 @@ class Diabatizer:
         current diabatic matrices in Wout, within the associated domains
         """
 
-        # Compute errors for each matrix
-        for im in range(self._Nm):
-            res = []
-            w = []
+        res = []
+        w = []
 
-            # Evaluate adiabatic matrices over each domain
-            for id_, states in self.states_by_domain[im].items():
-                x = self._x[id_]
-                Wx = self._Wout[im](x)
-                Vx, _ = adiabatic(Wx)
+        # Evaluate adiabatic matrices over each domain
+        for id_, states in self._states_by_domain.items():
+            x = self._x[id_]
+            Wx = self._Wout(x)
+            Vx, _ = adiabatic(Wx)
 
-                # Compute residual against selected states over the domain
-                for s in states:
-                    res.append(self._energies[id_][:,s] - Vx[:,s])
-                    w.append(np.broadcast_to(self._weights[id_][:,s], res[-1].shape))
+            # Compute residual against selected states over the domain
+            for s in states:
+                res.append(self._energies[id_][:,s] - Vx[:,s])
+                w.append(np.broadcast_to(self._weights[id_][:,s], res[-1].shape))
 
-            # Compute errors and save
-            res = np.hstack(res)
-            w = np.hstack(w)
+        # Compute errors and save
+        res = np.hstack(res)
+        w = np.hstack(w)
 
-            self._results[im].rmse = RMSE(res)
-            self._results[im].wrmse = wRMSE(res,w)
-            self._results[im].mae = MAE(res)
-            self._results[im].wmae = wMAE(res,w)
+        self._results.rmse = RMSE(res)
+        self._results.wrmse = wRMSE(res,w)
+        self._results.mae = MAE(res)
+        self._results.wmae = wMAE(res,w)
 
 
     def _compute_residuals(self, W: SymPolyMat, domains: dict):
@@ -379,54 +364,51 @@ class Diabatizer:
         """
         # By default, if no specific domain setting is given, use all the data
         # in the database for the fit
-        # NB: autoFit is false if Nm > 1
         if self._auto_fit:
-            self.set_fit_all_domain(0)
+            self.set_fit_all_domain()
 
         # Compute weights associated to points
         self.compute_weights()
 
-        # Run a separate optimization for each diabatic matrix
-        for i_matrix in range(self._Nm):
-            self._results[i_matrix].reset()
-            self._n_cost_calls = 0
+        self._results.reset()
+        self._n_cost_calls = 0
 
-            # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
-            # used for reconstructing the diabatic ansatzes during the optimization
-            # and at the end
-            coeffs, keys = self._Wguess[i_matrix].coeffs_and_keys()
-            origins = self._Wguess[i_matrix].get_all_x0()
-            this_matrix_domains = self._states_by_domain[i_matrix]
-            weights = []
-            for id_, states in this_matrix_domains.items():
-                for s in states:
-                    weights.append(self._weights[id_][:,s])
-            weights = np.hstack(tuple(weights))
+        # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
+        # used for reconstructing the diabatic ansatzes during the optimization
+        # and at the end
+        coeffs, keys = self._Wguess.coeffs_and_keys()
+        origins = self._Wguess.get_all_x0()
+        this_matrix_domains = self._states_by_domain
+        weights = []
+        for id_, states in this_matrix_domains.items():
+            for s in states:
+                weights.append(self._weights[id_][:,s])
+        weights = np.hstack(tuple(weights))
 
-            cost_fun = self._cost
-            if method_options:
-                if "verbose" in method_options:
-                    if method_options["verbose"] > 0:
-                        cost_fun = self._verbose_cost
-                        print("I    " + "COST")
-            
-            optres = scipy.optimize.minimize(
-                    cost_fun,    # Objective function to minimize
-                    coeffs,                 # Initial guess
-                    args=(
-                        keys,
-                        origins,
-                        this_matrix_domains,
-                        weights
-                    ),   # other arguments passed to objective function
-                    method=method,
-                    options=method_options
-            )
+        cost_fun = self._cost
+        if method_options:
+            if "verbose" in method_options:
+                if method_options["verbose"] > 0:
+                    cost_fun = self._verbose_cost
+                    print("I    " + "COST")
 
-            self._Wout[i_matrix] = SymPolyMat.construct(
-                    self._Ns, self._Nd, keys, optres.x, origins
-            )
-            self._results[i_matrix].from_OptimizeResult(optres)
+        optres = scipy.optimize.minimize(
+                cost_fun,    # Objective function to minimize
+                coeffs,                 # Initial guess
+                args=(
+                    keys,
+                    origins,
+                    this_matrix_domains,
+                    weights
+                ),   # other arguments passed to objective function
+                method=method,
+                options=method_options
+        )
+
+        self._Wout = SymPolyMat.construct(
+                self._Ns, self._Nd, keys, optres.x, origins
+        )
+        self._results.from_OptimizeResult(optres)
 
         self.compute_errors()
 
@@ -437,14 +419,14 @@ class Diabatizer:
                 "__Diabatizer__" : True,
                 "Nd"                        : self._Nd,
                 "Ns"                        : self._Ns,
-                "Nm"                        : self._Nm,
-                "Wguess"                    : [Wg.to_JSON_dict() for Wg in self._Wguess],
-                "Wout"                      : [Wo.to_JSON_dict() for Wo in self._Wout],
+                "Wguess"                    : self._Wguess.to_JSON_dict(),
+                "Wout"                      : self._Wout.to_JSON_dict(),
                 "x"                         : {id_ : x.tolist() for id_,x in self._x.items()},
                 "energies"                  : {id_ : e.tolist()
                                                     for id_,e in self._energies.items()},
-                "states_by_domain"          : [{id_ : str(states) for id_,states in dct.items()}
-                                                    for dct in self._states_by_domain],
+                "states_by_domain"          : {id_ : str(states)
+                                                    for id_, states in
+                                                        self._states_by_domain.items()},
                 "domain_IDs"                : list(self._domain_IDs),
                 "Ndomains"                  : self._Ndomains,
                 "last_domain_ID"            : self._last_domain_ID,
@@ -461,7 +443,7 @@ class Diabatizer:
                 "print_every"               : self._print_every,
                 "n_cost_calls"              : self._n_cost_calls,
                 "last_residuals"            : self._last_residuals.tolist(),
-                "results"                   : [r.to_JSON_dict() for r in self.results],
+                "results"                   : self.results.to_JSON_dict(),
                 }
         return dct
 
@@ -471,34 +453,27 @@ class Diabatizer:
         Deserialize Diabatizer in an intrusive way, i.e. setting some private members manually.
         ! This may become dangerous if the structure of the Diabatizer class change.
         """
-        Wguess = []
-        for Wg_dict in dct["Wguess"]:
-            if "__DampedSymPolyMat__" in Wg_dict:
-                Wguess.append(DampedSymPolyMat.from_JSON_dict(Wg_dict))
-                continue
-            Wguess.append(SymPolyMat.from_JSON_dict(Wg_dict))
 
-        Wout = []
-        for Wo_dict in dct["Wout"]:
-            if "__DampedSymPolyMat__" in Wo_dict:
-                Wout.append(DampedSymPolyMat.from_JSON_dict(Wo_dict))
-                continue
-            Wout.append(SymPolyMat.from_JSON_dict(Wo_dict))
+        if "__DampedSymPolyMat__" in dct["Wguess"]:
+            Wguess = DampedSymPolyMat.from_JSON_dict(dct["Wguess"])
+        else:
+            Wguess = SymPolyMat.from_JSON_dict(dct["Wguess"])
 
-        diab = Diabatizer(dct["Nd"], dct["Ns"], dct["Nm"], Wguess)
+        if "__DampedSymPolyMat__" in dct["Wout"]:
+            Wout = DampedSymPolyMat.from_JSON_dict(dct["Wout"])
+        else:
+            Wout = SymPolyMat.from_JSON_dict(dct["Wout"])
+
+        diab = Diabatizer(dct["Nd"], dct["Ns"], Wguess)
         diab._Wguess = Wguess
         diab._Wout = Wout
         diab._x = {id_: np.array(xlist) for id_, xlist in dct["x"].items()}
         diab._energies = {
-                id_: np.array(elist) \
-                        for id_, elist in dct["energies"].items()
-                        }
-        diab._states_by_domain = [
-                {
-                    id_: _str2tuple(str_states) \
-                        for id_, str_states in sbd_dct.items()
-                } for sbd_dct in dct["states_by_domain"]
-                ]
+            id_: np.array(elist) for id_, elist in dct["energies"].items()
+        }
+        diab._states_by_domain = {
+            id_: _str2tuple(str_states) for id_, str_states in dct["states_by_domain"].items()
+        }
         diab._domain_IDs = set(dct["domain_IDs"])
         diab._Ndomains = dct["Ndomains"]
         diab._last_domain_ID = dct["last_domain_ID"]
@@ -512,29 +487,7 @@ class Diabatizer:
         diab._print_every = dct["print_every"]
         diab._n_cost_calls = dct["n_cost_calls"]
         diab._last_residuals = np.array(dct["last_residuals"])
-        diab._results = [Results.from_JSON_dict(rdct) for rdct in dct["results"]]
-
-class SingleDiabatizer(Diabatizer):
-    def __init__(self, Ns, Nd, diab_guess: SymPolyMat = None, **kwargs):
-        super().__init__(Ns, Nd, 1, [diab_guess], **kwargs)
-
-    def rmse(self):
-        return super().results[0].rmse
-
-    def mae(self):
-        return super().results[0].mae
-
-    @property
-    def Wguess(self):
-        return self._Wguess[0]
-
-    @Wguess.setter
-    def Wguess(self, guess):
-        self._Wguess[0] = guess
-
-    @property
-    def Wout(self):
-        return self._Wout[0]
+        diab._results = Results.from_JSON_dict(dct["results"])
 
 
 def adiabatic2(W1, W2, W12, sign):
