@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Tuple
+from copy import deepcopy
 import numpy as np
 import scipy
 from .sympolymat import SymPolyMat
@@ -16,7 +17,7 @@ class Diabatizer:
             self._Wguess = diab_guess
         else :
             self._Wguess = SymPolyMat.eye(Ns, Nd)
-        self._Wout = self._Wguess
+        self._Wout = deepcopy(self._Wguess)
         self._x = {}
         self._energies = {}
         self._states_by_domain = {}
