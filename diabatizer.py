@@ -295,19 +295,10 @@ class Diabatizer:
             res = np.hstack(res)
             w = np.hstack(w)
 
-            resabs = np.abs(res)
-            res2 = np.dot(res,res)
-            sumw = np.sum(w)
-
-            rmse = np.sqrt(np.sum(res2)/self.n_fitted_points(im))
-            wrmse = np.sqrt(np.sum(w * res2)/sumw)
-            mae = np.sum(resabs)/self.n_fitted_points(im)
-            wmae = np.sum(w * resabs)/sumw
-
-            self._results[im].rmse = rmse
-            self._results[im].wrmse = wrmse
-            self._results[im].mae = mae
-            self._results[im].wmae = wmae
+            self._results[im].rmse = RMSE(res)
+            self._results[im].wrmse = wRMSE(res,w)
+            self._results[im].mae = MAE(res)
+            self._results[im].wmae = wMAE(res,w)
 
 
     def _compute_residuals(self, W: SymPolyMat, domains: dict):
