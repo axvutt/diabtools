@@ -109,6 +109,8 @@ def set_damping(W, x0, type_):
 
 
 def main():
+    results = {}
+    profile_stats = {}
     for Nd, Ns in list(CASES):
         X, Y, Wref, x0 = test_case(Nd, Ns)
         Wguess = DampedSymPolyMat.from_SymPolyMat(
@@ -118,14 +120,17 @@ def main():
             Wguess = set_damping(Wguess, x0, type_)
             diab = Diabatizer(Ns, Nd, 1, [Wguess,])
             diab.add_domain(X, Y)
-            results_by_method = {method: Results() for method in METHODS}
             for method in METHODS:
                 print("#############{:^15s}##############".format(method))
                 with cProfile.Profile() as profiler:
                     diab.optimize(method)
-                    profiler.print_stats()
-                results_by_method[method] = diab.results[0]
-                print(results_by_method[method])
+                    profiler.create_stats()
+                    stats = pstats.Stats(profiler)
+                stats.strip_dirs().sort_stats('cumulative', 'tottime')
+                profile_stats[(Nd,Ns,type_,method)] = stats
+                results[(Nd,Ns,type_,method)] = diab.results[0]
+                stats.print_stats()
+                print(diab.results[0])
     return 0
 
 if __name__ == "__main__":
