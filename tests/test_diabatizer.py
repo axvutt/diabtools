@@ -42,7 +42,7 @@ class TestDiabatizer:
         lif.Wguess = W
         lif.add_domain(x,en)
         lif.optimize()
-        
+
         if pytestconfig.getoption("verbose") > 0:
             # Make plot using resulting parameters
             r_test = np.logspace(np.log10(2), np.log10(10), 100)
@@ -53,7 +53,7 @@ class TestDiabatizer:
             yc_test = lif.Wout[1,0](x_test)
             ya1_test = adiabatic2(yd1_test, yd2_test, yc_test, -1)
             ya2_test = adiabatic2(yd1_test, yd2_test, yc_test, +1)
-            
+
             fig, axs = plt.subplots(2,1)
             _, nplots = en.shape
             labels = [
@@ -125,7 +125,7 @@ class TestDiabatizer:
         dW21[dW21==0] = np.nan
         dV1[dV1==0] = np.nan
         dV2[dV2==0] = np.nan
-       
+
         ldW11 = np.log10(dW11)
         ldW22 = np.log10(dW22)
         ldW21 = np.log10(dW21)
@@ -141,21 +141,21 @@ class TestDiabatizer:
         # Plot
         cl = np.linspace(-1,1,21)
         fig, axs = plt.subplots(3,3)
-        axs[0,0].plot(x,W11_t,color='b')      
-        axs[0,0].plot(x,W22_t,color='r')      
+        axs[0,0].plot(x,W11_t,color='b')
+        axs[0,0].plot(x,W22_t,color='r')
         axs[0,1].plot(x,W21_t,color='magenta')
-        axs[0,2].plot(x,V1_t, color='lime')    
-        axs[0,2].plot(x,V2_t, color='orange')  
+        axs[0,2].plot(x,V1_t, color='lime')
+        axs[0,2].plot(x,V2_t, color='orange')
 
         axs[0,0].set_ylabel(r"$W_{ii}$ (orig)")
         axs[0,1].set_ylabel(r"$W_{12}$ (orig)")
         axs[0,2].set_ylabel(r"$V_{i}$ (orig)")
 
-        axs[1,0].plot(x,W11,color='b')      
-        axs[1,0].plot(x,W22,color='r')      
+        axs[1,0].plot(x,W11,color='b')
+        axs[1,0].plot(x,W22,color='r')
         axs[1,1].plot(x,W21,color='magenta')
-        axs[1,2].plot(x,V1, color='lime')    
-        axs[1,2].plot(x,V2, color='orange')  
+        axs[1,2].plot(x,V1, color='lime')
+        axs[1,2].plot(x,V2, color='orange')
 
         axs[1,0].set_ylabel(r"$W_{ii}$ (fit)")
         axs[1,1].set_ylabel(r"$W_{12}$ (fit)")
@@ -201,13 +201,13 @@ class TestDiabatizer:
         dW21[dW21==0] = np.nan
         dV1[dV1==0] = np.nan
         dV2[dV2==0] = np.nan
-       
+
         ldW11 = np.log10(dW11)
         ldW22 = np.log10(dW22)
         ldW21 = np.log10(dW21)
         ldV1  = np.log10(dV1)
         ldV2  = np.log10(dV2)
-        
+
         # Quick and dirty fix for the improbable case where fit and data match exactly
         for ld in [ldW11, ldW22, ldW21, ldV1, ldV2]:
             if np.all(np.isnan(ld)):
@@ -318,7 +318,7 @@ class TestDiabatizer:
         dV1[dV1==0] = np.nan
         dV2[dV2==0] = np.nan
         dV3[dV3==0] = np.nan
-       
+
         ldW11 = np.log10(dW11)
         ldW22 = np.log10(dW22)
         ldW33 = np.log10(dW33)
@@ -328,7 +328,7 @@ class TestDiabatizer:
         ldV1  = np.log10(dV1)
         ldV2  = np.log10(dV2)
         ldV3  = np.log10(dV3)
-        
+
         # Quick and dirty fix for the improbable case where fit and data match exactly
         for ld in [ldW11, ldW22, ldW33, ldW21, ldW31, ldW32, ldV1, ldV2, ldV3]:
             if np.all(np.isnan(ld)):
@@ -446,10 +446,10 @@ class TestDiabatizer:
         dx2 = -1
         W = SymPolyMat(2,2)
         W[0,0] = NdPoly({(2,0): 0.5, (0,2): 0.5,})
-        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 #- W[0,0][(1,0)]*dx1 
+        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 #- W[0,0][(1,0)]*dx1
         W[0,0][(1,0)] = -2*W[0,0][(2,0)]*dx1
         W[1,1] = copy(W[0,0])
-        W[1,1][(0,0)] = W[0,0][(2,0)]*dx2**2 #- W[0,0][(1,0)]*dx2 
+        W[1,1][(0,0)] = W[0,0][(2,0)]*dx2**2 #- W[0,0][(1,0)]*dx2
         W[1,1][(1,0)] = -2*W[0,0][(2,0)]*dx2
         W[0,1] = NdPoly({(0,1): 5E-1})
         return W
@@ -487,7 +487,7 @@ class TestDiabatizer:
         W[0,0] = NdPoly({(2,0): 0.1, (0,2): 0.1,})
         W[1,1] = NdPoly({(0,0): 0.5, (1,0): -0.5})
         W[2,2] = NdPoly({(2,0): 0.1, (0,2): 0.1,})
-        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 
+        W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2
         W[0,0][(1,0)] = -2*W[0,0][(2,0)]*dx1
         W[2,2][(0,0)] = W[0,0][(2,0)]*dx2**2 + 1
         W[2,2][(1,0)] = -2*W[0,0][(2,0)]*dx2
@@ -536,7 +536,7 @@ class TestDiabatizer:
         V_t = np.zeros((x_data.shape[0], 2))
         V_t[:,0] = m - np.sqrt(d**2 + c**2)
         V_t[:,1] = m + np.sqrt(d**2 + c**2)
-        
+
         # 3: Fit diabatize test adiabatic surfaces
         W_guess = SymPolyMat.zero_like(W_test)
 
@@ -771,7 +771,7 @@ class TestDiabatizer:
             V_t[:,1] = m + np.sqrt(d**2 + c**2)
 
             V_t_list.append(V_t)
-        
+
         # Invalidate some data, on purpose
         V_t_list[1][:,1] = np.nan
 
