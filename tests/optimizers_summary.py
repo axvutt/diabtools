@@ -17,21 +17,24 @@ from diabtools.diagnostics import MAE, RMSE, wMAE, wRMSE
 from diabtools.results import Results
 
 METHODS = (
-        # 'Nelder-Mead' ,
-        'Powell'      ,
-        'CG'          ,
-        'BFGS'        ,
-        # 'Newton-CG'   ,
-        'L-BFGS-B'    ,
-        'TNC'         ,
-        'COBYLA'      ,
-        'SLSQP'       ,
-        'trust-constr',
-        # 'dogleg'      ,
-        # 'trust-ncg'   ,
-        # 'trust-exact' ,
-        # 'trust-krylov',
+        'COBYLA'        ,
         )
+# METHODS = (
+#         # 'Nelder-Mead' ,
+#         'Powell'      ,
+#         'CG'          ,
+#         'BFGS'        ,
+#         # 'Newton-CG'   ,
+#         'L-BFGS-B'    ,
+#         'TNC'         ,
+#         'COBYLA'      ,
+#         'SLSQP'       ,
+#         'trust-constr',
+#         # 'dogleg'      ,
+#         # 'trust-ncg'   ,
+#         # 'trust-exact' ,
+#         # 'trust-krylov',
+#         )
 
 
 def case_LiF():
@@ -78,7 +81,8 @@ def test_case(Nd, Ns):
     raise ValueError(f"No test case for Nd={Nd} and Ns={Ns}.")
 
 
-DAMPING_TYPES = ("none", "gspread", "gtight", "lspread", "ltight")
+# DAMPING_TYPES = ("none", "gspread", "gtight", "lspread", "ltight")
+DAMPING_TYPES = ("none",)
 
 def set_damping(W, x0, type_):
     if type_ == "gspread":
