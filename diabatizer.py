@@ -154,21 +154,27 @@ class Diabatizer:
         """ Specify the domain and states that a diabatic potential matrix
         should fit.
         """
-        if states is None:
+        if states is None or states == "all":
             states = tuple(s for s in range(self._Ns))
 
+        if id_ not in self._domain_IDs:
+            raise IndexError(
+                f"Chosen domain identifier {id_} has not been assigned yet. "
+                f"Choose among: {self._domain_IDs}."
+            )
+
         if any(s < 0 or self._Ns <= s for s in states):
-            raise ValueError(
+            raise IndexError(
                 f"One of specified states {states} is out of range, "
                 f"should be 0 <= s < {self._Ns}."
-                )
+            )
 
         self._states_by_domain[id_] = states
         self._auto_fit = False
 
     def set_fit_all_domain(self):
         for idd in self._domain_IDs:
-            self.set_fit_domain(idd)
+            self.set_fit_domain(idd, "all")
 
     def set_domain_weight(self, id_domain, weight):
         """ Assign a fixed weight to a coordinate domain. """
