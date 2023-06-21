@@ -151,8 +151,25 @@ class Diabatizer:
         self._Ndomains -= 1
 
     def set_fit_domain(self, id_: int, states: Tuple[int, ...] = None):
-        """ Specify the domain and states that a diabatic potential matrix
-        should fit.
+        """
+        Specify the states that the diabatic potential matrix should fit in a given domain.
+        If not called ever by the user, the Diabatizer instance is set in autoFit mode,
+        i.e. all states in all the included domains are taken into account in the fitting
+        procedure.
+
+        When called, the autoFit mode is disabled.
+
+        Args:
+            id_ :
+                domain identifier. Integer.
+            states :
+                tuple of states indices (integers), or
+                "all" literal string, in which case all states are selected, or
+                None, same effect as "all"
+
+        Raises:
+            IndexError: invalid state selection.
+            IndexError: invalid domain selection.
         """
         if states is None or states == "all":
             states = tuple(s for s in range(self._Ns))
