@@ -7,7 +7,7 @@ import pytest
 from ..ndpoly import NdPoly
 from ..sympolymat import SymPolyMat
 from ..dampedsympolymat import DampedSymPolyMat
-from ..diabatizer import Diabatizer, SingleDiabatizer, adiabatic, adiabatic2 
+from ..diabatizer import Diabatizer, adiabatic, adiabatic2
 
 class TestDiabatizer:
     def test_LiF(self, pytestconfig):
@@ -38,7 +38,7 @@ class TestDiabatizer:
         W[1,0] = NdPoly({(0,): 0.0})
 
         # Diabatize
-        lif = SingleDiabatizer(2,1)
+        lif = Diabatizer(2,1)
         lif.Wguess = W
         lif.add_domain(x,en)
         lif.optimize()
@@ -540,7 +540,7 @@ class TestDiabatizer:
         # 3: Fit diabatize test adiabatic surfaces
         W_guess = SymPolyMat.zero_like(W_test)
 
-        test2d2s = SingleDiabatizer(2,2,W_guess)
+        test2d2s = Diabatizer(2,2,W_guess)
         test2d2s.add_domain(x_data, V_t)
         test2d2s.optimize()
         W = test2d2s.Wout
@@ -553,8 +553,8 @@ class TestDiabatizer:
             self.plot_2d2s_testVSfit(X,Y,W_test_x,V_t,Wx)
 
         # Assert
-        assert math.isclose(test2d2s.rmse(), np.sqrt(np.dot(error, error)/(2*len(x_data))))
-        assert math.isclose(test2d2s.mae(), np.sum(np.abs(error))/(2*len(x_data)))
+        assert math.isclose(test2d2s.results.rmse, np.sqrt(np.dot(error, error)/(2*len(x_data))))
+        assert math.isclose(test2d2s.results.mae, np.sum(np.abs(error))/(2*len(x_data)))
         # for w, wt in zip(W,W_test):
         #     for c, ct in zip(w.coeffs(), wt.coeffs()):
         #         assert abs(c-ct) < 1E-10
@@ -596,7 +596,7 @@ class TestDiabatizer:
         W_guess[1,1][(1,0)] = -0.5
         W_guess[2,2][(0,0)] = 1
 
-        test2d3s = SingleDiabatizer(3,2,W_guess)
+        test2d3s = Diabatizer(3,2,W_guess)
         test2d3s.add_domain(x_data, V_t)
         test2d3s.optimize()
         W = test2d3s.Wout
@@ -664,7 +664,7 @@ class TestDiabatizer:
         W_guess[1,1][(0,)] = 1
         W_guess[1,1][(2,)] = 1
 
-        diab = SingleDiabatizer(Ns,Nd,W_guess)
+        diab = Diabatizer(Ns,Nd,W_guess)
         diab.add_domain(x, V_t)
         diab.optimize()
         W = diab.Wout
@@ -679,13 +679,17 @@ class TestDiabatizer:
         W_guess2[1][1,0][(0,)] = 0.7
         W_guess2[1][1,1][(0,)] = 1
         W_guess2[1][1,1][(1,)] = 1
-        diab2 = Diabatizer(Ns,Nd,2,W_guess2)
-        diab2.add_domain(x[left], V_t[left,:])
-        diab2.add_domain(x[right], V_t[right,:])
-        diab2.set_fit_domain(0,0) # matrix 0 to domain 0, all states
-        diab2.set_fit_domain(1,1) # matrix 1 to domain 1, all states
-        diab2.optimize()
-        W2 = diab2.Wout
+        diabatizers_2 = [
+            Diabatizer(Ns,Nd,W_guess2[0]),
+            Diabatizer(Ns,Nd,W_guess2[1]),
+        ]
+        W2 = []
+        for n, dbtz in enumerate(diabatizers_2):
+            dbtz.add_domain(x[left], V_t[left,:])
+            dbtz.add_domain(x[right], V_t[right,:])
+            dbtz.set_fit_domain(n, "all")
+            dbtz.optimize()
+            W2.append(dbtz.Wout)
 
         # Same, but with shifted matrices
         W_guess3 = [SymPolyMat(2,1) for _ in range(2)]
@@ -695,13 +699,18 @@ class TestDiabatizer:
         W_guess3[1][1,0][(0,)] = 0.7
         W_guess3[1][1,1][(1,)] = 1
         W_guess3[1].set_common_x0(1.)
-        diab3 = Diabatizer(Ns,Nd,2,W_guess3)
-        diab3.add_domain(x[left], V_t[left,:])
-        diab3.add_domain(x[right], V_t[right,:])
-        diab3.set_fit_domain(0,0) # matrix 0 to domain 0, all states
-        diab3.set_fit_domain(1,1) # matrix 1 to domain 1, all states
-        diab3.optimize()
-        W3 = diab3.Wout
+
+        diabatizers_3 = [
+            Diabatizer(Ns,Nd,W_guess3[0]),
+            Diabatizer(Ns,Nd,W_guess3[1]),
+        ]
+        W3 = []
+        for n, dbtz in enumerate(diabatizers_3):
+            dbtz.add_domain(x[left], V_t[left,:])
+            dbtz.add_domain(x[right], V_t[right,:])
+            dbtz.set_fit_domain(n, "all")
+            dbtz.optimize()
+            W3.append(dbtz.Wout)
 
         # Show the result if verbose test
         if pytestconfig.getoption("verbose") > 0:
@@ -769,14 +778,9 @@ class TestDiabatizer:
         # 3: Fit diabatize test adiabatic surfaces
         W_guess = SymPolyMat.zero_like(W_test)
 
-        test_raises = SingleDiabatizer(2,2,W_guess)
+        test_raises = Diabatizer(2,2,W_guess)
         test_raises.add_domain(xlist[0], V_t_list[0])
         raising_domain = test_raises.add_domain(xlist[1], V_t_list[1])
         test_raises.add_domain(xlist[2], V_t_list[2])
         with pytest.raises(ValueError, match=f"domain {raising_domain}, state 1"):
             test_raises.optimize()
-
-    def test_Nm(self):
-        with pytest.raises(ValueError):
-            diab = Diabatizer(3,3,1,[SymPolyMat.zero(3,3), SymPolyMat.zero(3,3)])
-

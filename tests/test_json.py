@@ -41,7 +41,7 @@ class TestJSON:
     @pytest.fixture(scope="class", params=["spm_ex", "dspm_ex"])
     def diab_ex(self, request):
         W = request.getfixturevalue(request.param)
-        diabatizer = Diabatizer(3,3,2, [W, W])
+        diabatizer = Diabatizer(3,3,W)
         return diabatizer
 
     #################### FIXTURES #################### 
