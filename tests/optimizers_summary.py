@@ -86,25 +86,25 @@ def set_damping(W, x0, type_):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Gaussian(xint, 1))
+                    W.set_damping((i,j), 0, Gaussian(xint, 1))
     if type_ == "gtight":
         for i in range(1,W.Ns):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Gaussian(xint, 0.1))
+                    W.set_damping((i,j), 0, Gaussian(xint, 0.1))
     if type_ == "lspread":
         for i in range(1,W.Ns):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Lorentzian(xint, 1))
+                    W.set_damping((i,j), 0, Lorentzian(xint, 1))
     if type_ == "ltight":
         for i in range(1,W.Ns):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Lorentzian(xint, 0.1))
+                    W.set_damping((i,j), 0, Lorentzian(xint, 0.1))
     return W
 
 
