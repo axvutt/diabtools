@@ -17,7 +17,7 @@ from diabtools.diagnostics import MAE, RMSE, wMAE, wRMSE
 from diabtools.results import Results
 
 METHODS = (
-        'COBYLA'        ,
+        'BFGS'        ,
         )
 # METHODS = (
 #         # 'Nelder-Mead' ,
@@ -122,7 +122,7 @@ def main():
             )
         for type_ in DAMPING_TYPES:
             Wguess = set_damping(Wguess, x0, type_)
-            diab = Diabatizer(Ns, Nd, 1, [Wguess,])
+            diab = Diabatizer(Ns, Nd, Wguess)
             diab.add_domain(X, Y)
             for method in METHODS:
                 print("#############{:^15s}##############".format(method))
@@ -132,9 +132,9 @@ def main():
                     stats = pstats.Stats(profiler)
                 stats.strip_dirs().sort_stats('cumulative', 'tottime')
                 profile_stats[(Nd,Ns,type_,method)] = stats
-                results[(Nd,Ns,type_,method)] = diab.results[0]
+                results[(Nd,Ns,type_,method)] = diab.results
                 stats.print_stats()
-                print(diab.results[0])
+                print(diab.results)
     return 0
 
 if __name__ == "__main__":
