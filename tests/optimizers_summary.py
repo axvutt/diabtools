@@ -17,21 +17,24 @@ from diabtools.diagnostics import MAE, RMSE, wMAE, wRMSE
 from diabtools.results import Results
 
 METHODS = (
-        # 'Nelder-Mead' ,
-        'Powell'      ,
-        'CG'          ,
-        'BFGS'        ,
-        # 'Newton-CG'   ,
-        'L-BFGS-B'    ,
-        'TNC'         ,
-        'COBYLA'      ,
-        'SLSQP'       ,
-        'trust-constr',
-        # 'dogleg'      ,
-        # 'trust-ncg'   ,
-        # 'trust-exact' ,
-        # 'trust-krylov',
+        'COBYLA'        ,
         )
+# METHODS = (
+#         # 'Nelder-Mead' ,
+#         'Powell'      ,
+#         'CG'          ,
+#         'BFGS'        ,
+#         # 'Newton-CG'   ,
+#         'L-BFGS-B'    ,
+#         'TNC'         ,
+#         'COBYLA'      ,
+#         'SLSQP'       ,
+#         'trust-constr',
+#         # 'dogleg'      ,
+#         # 'trust-ncg'   ,
+#         # 'trust-exact' ,
+#         # 'trust-krylov',
+#         )
 
 
 def case_LiF():
@@ -78,7 +81,8 @@ def test_case(Nd, Ns):
     raise ValueError(f"No test case for Nd={Nd} and Ns={Ns}.")
 
 
-DAMPING_TYPES = ("none", "gspread", "gtight", "lspread", "ltight")
+# DAMPING_TYPES = ("none", "gspread", "gtight", "lspread", "ltight")
+DAMPING_TYPES = ("none",)
 
 def set_damping(W, x0, type_):
     if type_ == "gspread":
@@ -86,29 +90,31 @@ def set_damping(W, x0, type_):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Gaussian(xint, 1))
+                    W.set_damping((i,j), 0, Gaussian(xint, 1))
     if type_ == "gtight":
         for i in range(1,W.Ns):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Gaussian(xint, 0.1))
+                    W.set_damping((i,j), 0, Gaussian(xint, 0.1))
     if type_ == "lspread":
         for i in range(1,W.Ns):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Lorentzian(xint, 1))
+                    W.set_damping((i,j), 0, Lorentzian(xint, 1))
     if type_ == "ltight":
         for i in range(1,W.Ns):
             for j in range(i):
                 if (i,j) in x0:
                     xint = x0[(i,j)]
-                    W.set_damping((i,j), Lorentzian(xint, 0.1))
+                    W.set_damping((i,j), 0, Lorentzian(xint, 0.1))
     return W
 
 
 def main():
+    results = {}
+    profile_stats = {}
     for Nd, Ns in list(CASES):
         X, Y, Wref, x0 = test_case(Nd, Ns)
         Wguess = DampedSymPolyMat.from_SymPolyMat(
@@ -118,14 +124,17 @@ def main():
             Wguess = set_damping(Wguess, x0, type_)
             diab = Diabatizer(Ns, Nd, 1, [Wguess,])
             diab.add_domain(X, Y)
-            results_by_method = {method: Results() for method in METHODS}
             for method in METHODS:
                 print("#############{:^15s}##############".format(method))
                 with cProfile.Profile() as profiler:
                     diab.optimize(method)
-                    profiler.print_stats()
-                results_by_method[method] = diab.results[0]
-                print(results_by_method[method])
+                    profiler.create_stats()
+                    stats = pstats.Stats(profiler)
+                stats.strip_dirs().sort_stats('cumulative', 'tottime')
+                profile_stats[(Nd,Ns,type_,method)] = stats
+                results[(Nd,Ns,type_,method)] = diab.results[0]
+                stats.print_stats()
+                print(diab.results[0])
     return 0
 
 if __name__ == "__main__":
