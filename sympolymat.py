@@ -48,6 +48,20 @@ class SymPolyMat():
         for ij, x0 in x0_by_ij.items():
             self[ij].x0 = x0
 
+    def coeffs(self):
+        coeffs = []
+        for i in range(self._Ns):
+            for j in range(i+1):
+                coeffs.append(self[i,j].coeffs_to_array())
+        return np.hstack(tuple(coeffs))
+
+    def keys(self):
+        keys = []
+        for i in range(self._Ns):
+            for j in range(i+1):
+                keys += [(i,j,powers) for powers in self[i,j].powers_to_list()]
+        return keys
+
     def coeffs_and_keys(self):
         """
         Return a 1D array of all the matrix's coefficients.
@@ -67,6 +81,28 @@ class SymPolyMat():
                 coeffs.append(self[i,j].coeffs_to_array())
                 keys += [(i,j,powers) for powers in self[i,j].powers_to_list()]
         return np.hstack(tuple(coeffs)), keys
+
+    def update(self, keys, coeffs):
+        """ Update polynomial coefficients.
+        
+        Args:
+            keys: list of tuples (i,j,P_ij) where i and j are matrix indices and the
+            corresponding P_ij is a tuple of the powers (p_1, ..., p_Nd) of each monomial
+            therein.
+            coeffs: 1d-iterable (array, list,...) containing as many coefficients as there
+            are monomials in the whole matrix. Assumed to be sorted according to keys.
+        Raises:
+            IndexError: keys and coeffs have different lengths.
+        """
+        if len(keys) != len(coeffs):
+            raise ValueError(
+                f"keys and coeffs have different lengths ({len(keys)} vs {len(coeffs)})."
+                )
+
+        for k, c, in zip(keys, coeffs):
+            i, j, powers = k
+            self[i,j][powers] = c
+
 
     @classmethod
     def construct(cls, Ns, Nd, keys, coeffs, dict_x0 = None):
