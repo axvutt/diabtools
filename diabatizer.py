@@ -310,7 +310,7 @@ class Diabatizer:
         self._results.wmae = wMAE(res,w)
 
 
-    def _compute_residuals(self, W: SymPolyMat, domains: dict):
+    def _compute_residuals(self, W: SymPolyMat, states_by_domain: dict):
         """
         Compute residual between reference energies and those deduced from a diabatic potential
         matrix.
@@ -322,7 +322,7 @@ class Diabatizer:
         * res : 1D np.ndarray of residuals
         """
         residuals = []
-        for id_, states in domains.items():
+        for id_, states in states_by_domain.items():
             # Compute adiabatic potential from diabatic ansatz
             x = self._x[id_]
             Wx = W(x)
