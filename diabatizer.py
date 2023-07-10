@@ -354,36 +354,22 @@ class Diabatizer:
         such that the adiabatic surfaces obtained from diagonalization of the
         diabatic ansatz fit the adiabatic data.
 
-        Parameters:
-        * c : 1d list/numpy array of coefficients
-        * keys : list of keys (i,j,(p1,p2,...)) mapping each of the coefficients
-          to a specific matrix element and monomial key
-        * x0s : dict of (i,j) -> x0 mapping matrix indices to origin point
-        * domains : dict of id_ -> (s1, s2, ...) mapping domain index to tuple of state indices
+        Args:
+            c : 1d list/numpy array of coefficients. Assumed to be sorted as expected by
+            SymPolyMat.update() does, see related documentation.
+
+        Returns:
+            cost: value of the cost function (weighted RMSE).
         """
-
-        # Construct diabatic matrix by reassigning coefficients to
-        # powers of each of the matrix elements
-        W = SymPolyMat.construct(
-                self._Ns,
-                self._Nd,
-                self._Wguess.coeffs_and_keys()[-1],
-                c,
-                self._Wguess.get_all_x0())
-
-        res = self._compute_residuals(W, self._states_by_domain)
+        self._Wout.update(self._Wguess.keys(),c)
+        res = self._compute_residuals(self._Wout, self._states_by_domain)
         wrmse = wRMSE(res, self._weights_flat)
         return wrmse
 
 
     def _cache_results(self,c):
-        W = SymPolyMat.construct(
-            self._Ns,
-            self._Nd,
-            self._Wguess.coeffs_and_keys[-1],
-            c,
-            self._Wguess.get_all_x0s())
-        res = self._compute_residuals(W, self._states_by_domain)
+        self._Wout.update(self._Wguess.keys(),c)
+        res = self._compute_residuals(self._Wout, self._states_by_domain)
         self._results.residuals = res
         tmp_rmse = RMSE(res)
         tmp_wrmse = wRMSE(res, self._weights_flat)
@@ -444,18 +430,13 @@ class Diabatizer:
         if self._auto_fit:
             self.set_fit_all_domain()
 
-        # Compute weights associated to points
-        self.compute_weights()
-
+        # Initialize
         self._results.reset()
+        self._Wout = deepcopy(self._Wguess)
+        self.compute_weights()
+        coeffs = self._Wguess.coeffs()
 
-        # Cache keys, origins and weights
-        # They are used to reconstruct the diabatic matrix
-        # and compute the cost function at each iteration.
-        # coeffs is the initial guess of the vector of coefficients to optimize
-        coeffs, keys = self._Wguess.coeffs_and_keys()
-        x0s = self._Wguess.get_all_x0()
-
+        # Set verbose callback if desired
         verb_callback = None
         if method_options:
             if "verbose" in method_options:
@@ -471,9 +452,7 @@ class Diabatizer:
             callback=verb_callback
         )
 
-        self._Wout = SymPolyMat.construct(
-            self._Ns, self._Nd, keys, optres.x, x0s
-        )
+        self._Wout.update(self._Wguess.keys(), optres.x)
         self._results.from_OptimizeResult(optres)
 
         self.compute_errors()
