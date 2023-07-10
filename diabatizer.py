@@ -391,7 +391,7 @@ class Diabatizer:
         self._results.wrmse = tmp_wrmse
         self._results.mae   = tmp_mae
         self._results.wmae  = tmp_wmae
-        self._results.cost  = tmp_cost
+        self._results.cost  = self._results.wrmse
         self._results.delta_cost  = self._results.delta_wrmse
         return
 
