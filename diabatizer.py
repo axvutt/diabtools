@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Tuple
 from copy import deepcopy
+import math
 import numpy as np
 import scipy
 from .sympolymat import SymPolyMat
@@ -32,7 +33,7 @@ class Diabatizer:
         self._weights_coord = {}
         self._weights_energy = {}
         self._weights_flat = None
-        self._print_every = 50
+        self._print_every = 5
         self._results = Results()
 
     @property
@@ -402,7 +403,7 @@ class Diabatizer:
             )
 
 
-    def optimize(self, method="l-bfgs-b", method_options=None):
+    def optimize(self, method="l-bfgs-b", method_options=None, verbose=False, print_every=5):
         """ Run optimization
 
         Find best coefficients for polynomial diabatics and couplings fitting
@@ -421,11 +422,23 @@ class Diabatizer:
 
         # Set verbose callback if desired
         verb_callback = None
-        if method_options:
-            if "verbose" in method_options:
-                if method_options["verbose"] > 0:
-                    verb_callback = self._cost_verbose_callback
-                    print("I    " + "COST")
+        if verbose:
+            verb_callback = self._cost_verbose_callback
+            self._print_every = max(print_every,1)
+            print(
+                "{:<6s}".format("I")
+                + (" {:>12s}"*9).format(
+                    "dC",
+                    "wRMSE",
+                    "dwRMSE",
+                    "RMSE",
+                    "dRMSE",
+                    "wMAE",
+                    "dwMAE",
+                    "MAE",
+                    "dMAE",
+                )
+            )
 
         optres = scipy.optimize.minimize(
             self._cost,    # Objective function to minimize
