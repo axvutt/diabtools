@@ -393,7 +393,7 @@ class Diabatizer:
         self._results.wmae  = tmp_wmae
         self._results.cost  = self._results.wrmse
         self._results.delta_cost  = self._results.delta_wrmse
-        return
+
 
     def _cost_verbose_callback(self, c):
         """ Callback function called at end of each call of _cost, if verbose option is turned on. """
