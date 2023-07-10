@@ -461,7 +461,7 @@ class Diabatizer:
                     print("I    " + "COST")
 
         optres = scipy.optimize.minimize(
-            cost_fun,    # Objective function to minimize
+            self._cost,    # Objective function to minimize
             coeffs,                 # Initial guess
             method=method,
             options=method_options,
