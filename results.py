@@ -38,7 +38,7 @@ class Results:
         self.delta_wrmse = 0.0
         self.delta_mae = 0.0
         self.delta_wmae = 0.0
-        self.residual = np.array([])
+        self.residuals = np.array([])
         self.cost = 0.0
         self.delta_cost = 0.0
 
