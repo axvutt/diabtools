@@ -127,7 +127,7 @@ def main():
             for method in METHODS:
                 print("#############{:^15s}##############".format(method))
                 with cProfile.Profile() as profiler:
-                    diab.optimize(method)
+                    diab.optimize(method, verbose=True, print_every=1)
                     profiler.create_stats()
                     stats = pstats.Stats(profiler)
                 stats.strip_dirs().sort_stats('cumulative', 'tottime')
