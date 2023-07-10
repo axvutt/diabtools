@@ -22,6 +22,9 @@ class Results:
     cost : float = 0.0
     delta_cost : float = 0.0
 
+    def increment_nit(self):
+        self.n_it += 1
+
     def reset(self):
         self.success = False
         self.coeffs = np.array([])
