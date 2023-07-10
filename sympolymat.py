@@ -49,6 +49,15 @@ class SymPolyMat():
             self[ij].x0 = x0
 
     def coeffs(self):
+        """ 1D array of all the matrix's coefficients.
+
+        Return:
+            coeffs: 1d array of the coefficients of all the monomials in the matrix,
+            sorted by (i,j,P_ij) where:
+                - i and j are the indices of a matrix element
+                - P_ij = (p1, p2, ...) is a tuple of powers of a monomial in matrix
+                  element (i,j)
+        """
         coeffs = []
         for i in range(self._Ns):
             for j in range(i+1):
@@ -56,6 +65,14 @@ class SymPolyMat():
         return np.hstack(tuple(coeffs))
 
     def keys(self):
+        """ List of tuples matrix element indices and monomial powers.
+
+        Return:
+            keys: list of tuples (i,j,P_ij) where:
+                - i and j are the indices of a matrix element
+                - P_ij = (p1, p2, ...) is a tuple of powers of a monomial in matrix
+                  element (i,j)
+        """
         keys = []
         for i in range(self._Ns):
             for j in range(i+1):
