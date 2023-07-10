@@ -265,6 +265,7 @@ class Diabatizer:
         """
         Precompute weights assigned to points in coordinate space or the corresponding energies
         if weighting functions have been specified.
+        Also, cache the results in a flat 1d-array
         """
         # Leave out domains whose weights were specified manually
         for id_ in self._domain_IDs.difference(self._manually_weighted_domains):
@@ -276,6 +277,13 @@ class Diabatizer:
                 self._weights_energy[id_] = self._wfun_energy(self._energies[id_])
             # Combine
             self._weights[id_] = self._weights_coord[id_] * self._weights_energy[id_]
+
+        # Cache to flat 1d-array
+        weights = []
+        for id_, states in self._states_by_domain.items():
+            for s in states:
+                weights.append(self._weights[id_][:,s])
+        self._weights_flat = np.hstack(tuple(weights))
 
 
     def compute_errors(self):
@@ -447,11 +455,6 @@ class Diabatizer:
         # coeffs is the initial guess of the vector of coefficients to optimize
         coeffs, keys = self._Wguess.coeffs_and_keys()
         x0s = self._Wguess.get_all_x0()
-        weights = []
-        for id_, states in self._states_by_domain.items():
-            for s in states:
-                weights.append(self._weights[id_][:,s])
-        self._weights_flat = np.hstack(tuple(weights))
 
         verb_callback = None
         if method_options:
