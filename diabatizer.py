@@ -367,7 +367,7 @@ class Diabatizer:
         wrmse = wRMSE(res, self._weights_flat)
         return wrmse
 
-    
+
     def _cache_results(self,c):
         W = SymPolyMat.construct(
             self._Ns,
@@ -386,18 +386,18 @@ class Diabatizer:
         self._results.delta_wrmse  = tmp_wrmse - self._results.wrmse
         self._results.delta_mae    = tmp_mae   - self._results.mae
         self._results.delta_wmae   = tmp_wmae  - self._results.wmae
-        self._results.coeffs = c 
-        self._results.rmse  = tmp_rmse 
+        self._results.coeffs = c
+        self._results.rmse  = tmp_rmse
         self._results.wrmse = tmp_wrmse
         self._results.mae   = tmp_mae
-        self._results.wmae  = tmp_wmae 
-        self._results.cost  = tmp_cost 
-        self._results.delta_cost  = self._results.delta_wrmse 
+        self._results.wmae  = tmp_wmae
+        self._results.cost  = tmp_cost
+        self._results.delta_cost  = self._results.delta_wrmse
         return
 
     def _cost_verbose_callback(self, c):
         """ Callback function called at end of each call of _cost, if verbose option is turned on. """
-        
+
         self._results.increment_nit()
         n_it = self._results.n_it
 
