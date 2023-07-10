@@ -32,8 +32,6 @@ class Diabatizer:
         self._weights_coord = {}
         self._weights_energy = {}
         self._print_every = 50
-        self._n_cost_calls = 0
-        self._last_residuals = np.array([])
         self._results = Results()
 
     @property
@@ -360,25 +358,10 @@ class Diabatizer:
         W = SymPolyMat.construct(self._Ns, self._Nd, keys, c, x0s)
 
         res = self._compute_residuals(W, domains)
-        # Store for verbose output
-        self._last_residuals = res
         wrmse = wRMSE(res, weights)
         return wrmse
 
-    def _verbose_cost(self, c, keys, x0s, domains, weights):
-        """ Wrapper of cost function which also prints out optimization progress. """
-        wrmse = self._cost(c, keys, x0s, domains, weights)
-        n = self._increment_cost_calls()
-        if n % self._print_every == 0:
-            rmse = RMSE(self._last_residuals)
-            mae = MAE(self._last_residuals)
-            wmae = wMAE(self._last_residuals, weights)
-            print("{:<10d} {:12.8e} {:12.8e} {:12.8e} {:12.8e}".format(n,wrmse,rmse,wmae,mae))
-        return wrmse
 
-    def _increment_cost_calls(self):
-        self._n_cost_calls += 1
-        return self._n_cost_calls
 
     def optimize(self, method="l-bfgs-b", method_options=None):
         """ Run optimization
@@ -395,7 +378,6 @@ class Diabatizer:
         self.compute_weights()
 
         self._results.reset()
-        self._n_cost_calls = 0
 
         # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
         # used for reconstructing the diabatic ansatzes during the optimization
@@ -413,7 +395,6 @@ class Diabatizer:
         if method_options:
             if "verbose" in method_options:
                 if method_options["verbose"] > 0:
-                    cost_fun = self._verbose_cost
                     print("I    " + "COST")
 
         optres = scipy.optimize.minimize(
@@ -465,8 +446,6 @@ class Diabatizer:
                 "weights_energy"            : {id_: w.tolist()
                                                     for id_, w in self._weights_energy.items()},
                 "print_every"               : self._print_every,
-                "n_cost_calls"              : self._n_cost_calls,
-                "last_residuals"            : self._last_residuals.tolist(),
                 "results"                   : self.results.to_JSON_dict(),
                 }
         return dct
@@ -509,8 +488,6 @@ class Diabatizer:
         diab._weights_coord = {id_: np.array(w) for id_, w in dct["weights_coord"].items()}
         diab._weights_energy = {id_: np.array(w) for id_, w in dct["weights_energy"].items()}
         diab._print_every = dct["print_every"]
-        diab._n_cost_calls = dct["n_cost_calls"]
-        diab._last_residuals = np.array(dct["last_residuals"])
         diab._results = Results.from_JSON_dict(dct["results"])
 
 
