@@ -14,6 +14,7 @@ class Results:
     wrmse : float = 0.0
     mae : float = 0.0
     wmae : float = 0.0
+    dc2 : float = 0.0
     delta_rmse : float = 0.0
     delta_wrmse : float = 0.0
     delta_mae : float = 0.0
