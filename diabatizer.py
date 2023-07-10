@@ -293,28 +293,11 @@ class Diabatizer:
         current diabatic matrices in Wout, within the associated domains
         """
 
-        res = []
-        w = []
-
-        # Evaluate adiabatic matrices over each domain
-        for id_, states in self._states_by_domain.items():
-            x = self._x[id_]
-            Wx = self._Wout(x)
-            Vx, _ = adiabatic(Wx)
-
-            # Compute residual against selected states over the domain
-            for s in states:
-                res.append(self._energies[id_][:,s] - Vx[:,s])
-                w.append(np.broadcast_to(self._weights[id_][:,s], res[-1].shape))
-
-        # Compute errors and save
-        res = np.hstack(res)
-        w = np.hstack(w)
-
+        res = self._compute_residuals(self._Wout, self.states_by_domain)
         self._results.rmse = RMSE(res)
-        self._results.wrmse = wRMSE(res,w)
+        self._results.wrmse = wRMSE(res,self._weights_flat)
         self._results.mae = MAE(res)
-        self._results.wmae = wMAE(res,w)
+        self._results.wmae = wMAE(res,self._weights_flat)
 
 
     def _compute_residuals(self, W: SymPolyMat, states_by_domain: dict):
