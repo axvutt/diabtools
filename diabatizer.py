@@ -385,26 +385,25 @@ class Diabatizer:
         self._results.increment_nit()
         n_it = self._results.n_it
 
-        # Compute and store coeffs and errors at print iteration -1
-        if (n_it + 1) % self._print_every == 0:
+        # Compute and store coeffs and errors at print iteration
+        # (and preceding iteration, for deltas)
+        if ((n_it + 1) % self._print_every == 0
+            or n_it % self._print_every == 0):
             self._cache_results(c)
-            return
 
-        # Compute errors and coeffs displacements at this stage
         if n_it % self._print_every == 0:
-            self._cache_results(c)
-            # Calculate displacement wrt last iteration
-            print("{:<6d}" + (" {:8.4e}"*9).format(
-                self._results.n_it,
-                self._results.dc2,
-                self._results.wrmse,
-                self._results.delta_wrmse,
-                self._results.rmse,
-                self._results.delta_rmse,
-                self._results.wmae,
-                self._results.delta_wmae,
-                self._results.mae,
-                self._results.delta_mae,
+            print(
+                "{:<6d}".format(self._results.n_it)
+                + (" {: 12.4e}"*9).format(
+                    self._results.dc2,
+                    self._results.wrmse,
+                    self._results.delta_wrmse,
+                    self._results.rmse,
+                    self._results.delta_rmse,
+                    self._results.wmae,
+                    self._results.delta_wmae,
+                    self._results.mae,
+                    self._results.delta_mae,
                 )
             )
 
