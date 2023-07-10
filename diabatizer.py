@@ -31,6 +31,7 @@ class Diabatizer:
         self._weights = {}
         self._weights_coord = {}
         self._weights_energy = {}
+        self._weights_flat = None
         self._print_every = 50
         self._results = Results()
 
@@ -337,7 +338,7 @@ class Diabatizer:
 
         return np.hstack(tuple(residuals))
 
-    def _cost(self, c, keys, x0s, domains, weights):
+    def _cost(self, c):
         """
         Compute cost function for finding optimal diabatic anzats coefficients.
 
@@ -355,10 +356,15 @@ class Diabatizer:
 
         # Construct diabatic matrix by reassigning coefficients to
         # powers of each of the matrix elements
-        W = SymPolyMat.construct(self._Ns, self._Nd, keys, c, x0s)
+        W = SymPolyMat.construct(
+                self._Ns,
+                self._Nd,
+                self._Wguess.coeffs_and_keys()[-1],
+                c,
+                self._Wguess.get_all_x0())
 
-        res = self._compute_residuals(W, domains)
-        wrmse = wRMSE(res, weights)
+        res = self._compute_residuals(W, self._states_by_domain)
+        wrmse = wRMSE(res, self._weights_flat)
         return wrmse
 
 
@@ -379,17 +385,17 @@ class Diabatizer:
 
         self._results.reset()
 
-        # Here each key in 'keys' refers to a coefficient in 'coeffs' and is
-        # used for reconstructing the diabatic ansatzes during the optimization
-        # and at the end
+        # Cache keys, origins and weights
+        # They are used to reconstruct the diabatic matrix
+        # and compute the cost function at each iteration.
+        # coeffs is the initial guess of the vector of coefficients to optimize
         coeffs, keys = self._Wguess.coeffs_and_keys()
-        origins = self._Wguess.get_all_x0()
-        this_matrix_domains = self._states_by_domain
+        x0s = self._Wguess.get_all_x0()
         weights = []
-        for id_, states in this_matrix_domains.items():
+        for id_, states in self._states_by_domain.items():
             for s in states:
                 weights.append(self._weights[id_][:,s])
-        weights = np.hstack(tuple(weights))
+        self._weights_flat = np.hstack(tuple(weights))
 
         cost_fun = self._cost
         if method_options:
@@ -398,20 +404,15 @@ class Diabatizer:
                     print("I    " + "COST")
 
         optres = scipy.optimize.minimize(
-                cost_fun,    # Objective function to minimize
-                coeffs,                 # Initial guess
-                args=(
-                    keys,
-                    origins,
-                    this_matrix_domains,
-                    weights
-                ),   # other arguments passed to objective function
-                method=method,
-                options=method_options
+            cost_fun,    # Objective function to minimize
+            coeffs,                 # Initial guess
+            method=method,
+            options=method_options,
+            callback=verb_callback
         )
 
         self._Wout = SymPolyMat.construct(
-                self._Ns, self._Nd, keys, optres.x, origins
+            self._Ns, self._Nd, keys, optres.x, x0s
         )
         self._results.from_OptimizeResult(optres)
 
