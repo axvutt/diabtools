@@ -33,6 +33,7 @@ class Results:
         self.wrmse = 0.0
         self.mae = 0.0
         self.wmae = 0.0
+        self.dc2 = 0.0
         self.delta_rmse = 0.0
         self.delta_wrmse = 0.0
         self.delta_mae = 0.0
@@ -40,6 +41,10 @@ class Results:
         self.residual = np.array([])
         self.cost = 0.0
         self.delta_cost = 0.0
+
+    @staticmethod
+    def dist_l2(c1, c2):
+        return np.linalg.norm(c1-c2, ord=2)
 
     def from_OptimizeResult(self, optres : scipy.optimize.OptimizeResult):
         self.success = optres.success
