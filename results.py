@@ -57,28 +57,28 @@ class Results:
             self.n_fev = optres.nfev
         if "njev" in optres:
             self.n_jev = optres.njev
-    
+
     def to_JSON_dict(self):
         out = {
-                "__Results__" : True,
-                "success"     : self.success,
-                "coeffs"      : self.coeffs.tolist(),
-                "n_it"        : self.n_it,
-                "n_fev"       : self.n_fev,
-                "n_jev"       : self.n_jev,
-                "n_hev"       : self.n_hev,
-                "rmse"        : self.rmse,
-                "wrmse"       : self.wrmse,
-                "mae"         : self.mae,
-                "wmae"        : self.wmae,
-                "delta_rmse"  : self.delta_rmse,
-                "delta_wrmse" : self.delta_wrmse,
-                "delta_mae"   : self.delta_mae,
-                "delta_wmae"  : self.delta_wmae,
-                "residuals"   : self.residuals.tolist(),
-                "cost"        : self.cost,
-                "delta_cost"  : self.delta_cost,
-                }
+            "__Results__" : True,
+            "success"     : self.success,
+            "coeffs"      : self.coeffs.tolist(),
+            "n_it"        : self.n_it,
+            "n_fev"       : self.n_fev,
+            "n_jev"       : self.n_jev,
+            "n_hev"       : self.n_hev,
+            "rmse"        : self.rmse,
+            "wrmse"       : self.wrmse,
+            "mae"         : self.mae,
+            "wmae"        : self.wmae,
+            "delta_rmse"  : self.delta_rmse,
+            "delta_wrmse" : self.delta_wrmse,
+            "delta_mae"   : self.delta_mae,
+            "delta_wmae"  : self.delta_wmae,
+            "residuals"   : self.residuals.tolist(),
+            "cost"        : self.cost,
+            "delta_cost"  : self.delta_cost,
+        }
         return out
 
     @staticmethod
@@ -87,21 +87,21 @@ class Results:
             raise KeyError("The JSON object is not a Results object.")
 
         return Results(
-                success     = dct["success"    ],
-                coeffs      = np.array(dct["coeffs"     ]),
-                n_it        = dct["n_it"       ],
-                n_fev       = dct["n_fev"      ],
-                n_jev       = dct["n_jev"      ],
-                n_hev       = dct["n_hev"      ],
-                rmse        = dct["rmse"       ],
-                wrmse       = dct["wrmse"      ],
-                mae         = dct["mae"        ],
-                wmae        = dct["wmae"       ],
-                delta_rmse  = dct["delta_rmse" ],
-                delta_wrmse = dct["delta_wrmse"],
-                delta_mae   = dct["delta_mae"  ],
-                delta_wmae  = dct["delta_wmae" ],
-                residuals   = np.array(dct["residuals"  ]),
-                cost        = dct["cost"       ],
-                delta_cost  = dct["delta_cost" ],
-                )
+            success     = dct["success"    ],
+            coeffs      = np.array(dct["coeffs"     ]),
+            n_it        = dct["n_it"       ],
+            n_fev       = dct["n_fev"      ],
+            n_jev       = dct["n_jev"      ],
+            n_hev       = dct["n_hev"      ],
+            rmse        = dct["rmse"       ],
+            wrmse       = dct["wrmse"      ],
+            mae         = dct["mae"        ],
+            wmae        = dct["wmae"       ],
+            delta_rmse  = dct["delta_rmse" ],
+            delta_wrmse = dct["delta_wrmse"],
+            delta_mae   = dct["delta_mae"  ],
+            delta_wmae  = dct["delta_wmae" ],
+            residuals   = np.array(dct["residuals"  ]),
+            cost        = dct["cost"       ],
+            delta_cost  = dct["delta_cost" ],
+        )
