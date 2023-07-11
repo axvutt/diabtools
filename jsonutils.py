@@ -18,7 +18,7 @@ def _str2tuple(s):
 # In C++, use template
 def save_to_JSON(obj, fname):
     with open(fname, "w") as f:
-        json.dump(f, obj.to_JSON_dict())
+        json.dump(obj.to_JSON_dict(), f)
 
 # In C++, maybe use variant?
 def load_from_JSON(fname):
