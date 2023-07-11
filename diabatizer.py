@@ -196,7 +196,7 @@ class Diabatizer:
     def set_domain_weight(self, id_domain, weight):
         """ Assign a fixed weight to a coordinate domain. """
         self._manually_weighted_domains.add(id_domain)
-        self._weights[id_domain] = weight
+        self._weights[id_domain] = np.full_like(self._energies[id_domain], weight)
 
     def unset_domain_weight(self, id_domain):
         """ Unassign fixed weight to a coordinate domain. """
