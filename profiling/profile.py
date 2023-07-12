@@ -137,7 +137,13 @@ PLOT_FUNCTION = {
     (1,2): plot_LiF
 }
 
-
+def make_dir():
+    dirpath = "profiling_{}__0".format(datetime.now().strftime("%y%m%d-%H%M"))
+    while os.path.exists(dirpath):
+        ndir = int(dirpath.split("__")[-1])
+        dirpath = dirpath.split("__")[0] + f"__{ndir+1}"
+    os.mkdir(dirpath)
+    return dirpath
 
 def main():
     results = {}
@@ -165,12 +171,7 @@ def main():
                 stats.print_stats()
                 print(diab.results)
 
-    dirpath = "profiling_{}__0".format(datetime.now().strftime("%y%m%d-%H%M"))
-    while os.path.exists(dirpath):
-        ndir = int(dirpath.split("__")[-1])
-        dirpath = dirpath.split("__")[0] + f"__{ndir+1}"
-    os.mkdir(dirpath)
-
+    dirpath = make_dir()
     for Nd, Ns in list(CASES):
         for type_ in DAMPING_TYPES:
             for method in METHODS:
