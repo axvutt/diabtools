@@ -4,4 +4,4 @@ __pycache__
 *.json
 *.swp
 *.swo
-tests/profiling*
+profiling/profiling_*
