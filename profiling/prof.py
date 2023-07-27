@@ -20,30 +20,30 @@ from diabtools.diabatizer import Diabatizer, adiabatic
 from diabtools.diagnostics import MAE, RMSE, wMAE, wRMSE
 from diabtools.results import Results
 from diabtools.jsonutils import save_to_JSON, load_from_JSON
+import diabtools.compare as comp
 import prdata
-import prplot
 
 ######## CONSTANTS #############
 
-METHODS = (
-        'BFGS'        ,
-        )
 # METHODS = (
-#         # 'Nelder-Mead' ,
-#         'Powell'      ,
-#         'CG'          ,
 #         'BFGS'        ,
-#         # 'Newton-CG'   ,
-#         'L-BFGS-B'    ,
-#         'TNC'         ,
-#         'COBYLA'      ,
-#         'SLSQP'       ,
-#         'trust-constr',
-#         # 'dogleg'      ,
-#         # 'trust-ncg'   ,
-#         # 'trust-exact' ,
-#         # 'trust-krylov',
 #         )
+METHODS = (
+        # 'Nelder-Mead' ,
+        'Powell'      ,
+        'CG'          ,
+        'BFGS'        ,
+        # 'Newton-CG'   ,
+        'L-BFGS-B'    ,
+        'TNC'         ,
+        'COBYLA'      ,
+        'SLSQP'       ,
+        'trust-constr',
+        # 'dogleg'      ,
+        # 'trust-ncg'   ,
+        # 'trust-exact' ,
+        # 'trust-krylov',
+        )
 
 CASES = (
     # "LiF",
@@ -60,12 +60,12 @@ DAMP_AXIS = {
     "JTCI": (1,),
 }
 
-# DAMPING_TYPES = ("none", "gspread", "gtight", "lspread", "ltight")
-DAMPING_TYPES = ("gtight",)
+DAMPING_TYPES = ("none", "gspread", "gtight", "lspread", "ltight")
+# DAMPING_TYPES = ("gtight",)
 
 PLOT_FUNCTION = {
-    "LiF": prplot.compare_data_1d,
-    "JTCI": prplot.compare_data_2d,
+    "LiF": comp.compare_data_1d,
+    "JTCI": comp.compare_data_2d,
 }
 
 ########## END CONSTANTS ###########
@@ -96,7 +96,7 @@ def set_damping(W, case, type_):
             return Lorentzian(x0, 1)
         if damptype == "ltight":
             return Lorentzian(x0, 0.1)
-        if not damptype:
+        if not damptype or damptype == "none":
             return None
         raise ValueError("Unknown damping type")
 
@@ -106,6 +106,8 @@ def set_damping(W, case, type_):
                 W.set_damping((i,j), 0, damp(float(W[i,j].x0[0]), type_))
             if case == "JTCI":
                 W.set_damping((i,j), 1, damp(float(W[i,j].x0[1]), type_))
+            else:
+                raise ValueError(f"Unknown case {case}.")
 
     return W
 
@@ -124,10 +126,10 @@ def main():
     Wout = {}
     for case in CASES:
         Nd, Ns = NDNS[case]
-        X, Y, Wguess = get_data(case)
+        X, Y, Wguess, Wref = get_data(case)
         Wguess = DampedSymPolyMat.from_SymPolyMat(Wguess)
         for type_ in DAMPING_TYPES:
-            Wguess = set_damping(Wguess, DAMP_AXIS[case], type_)
+            Wguess = set_damping(Wguess, case, type_)
             diab = Diabatizer(Ns, Nd, Wguess)
             diab.add_domain(X, Y)
             for method in METHODS:
@@ -149,7 +151,7 @@ def main():
         for type_ in DAMPING_TYPES:
             for method in METHODS:
                 fname = f"{Nd}{Ns}_{type_}_{method}"
-                X, Y, _ = get_data(case)
+                X, Y, _, Wref = get_data(case)
                 save_to_JSON(results[(case,type_,method)], dirpath + "/res_" + fname + ".json")
                 save_to_JSON(Wout[(case,type_,method)], dirpath + "/W_" + fname + ".json")
                 profile_stats[(case,type_,method)].dump_stats(dirpath + "/pr_" + fname + ".stat")

@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import ConstantsSI as SI
 from diabtools.ndpoly import NdPoly
 from diabtools.sympolymat import SymPolyMat
+from diabtools.dampedsympolymat import DampedSymPolyMat
+from diabtools.damping import Gaussian
+from diabtools.diabatizer import adiabatic
 
 def LiF():
     # Load data
@@ -31,30 +34,27 @@ def LiF():
     # Intersection location
     Wguess[1,0].x0 = 0
 
-    return X, Y, Wguess
+    return X, Y, Wguess, None
 
 
 def JTCI_2d2s():
-    dx1 = 1
-    dx2 = -1
-    W = SymPolyMat(2,2)
+    W = DampedSymPolyMat(2,2)
     W[0,0] = NdPoly({(2,0): 0.5, (0,2): 0.5,})
-    W[0,0][(0,0)] = W[0,0][(2,0)]*dx1**2 #- W[0,0][(1,0)]*dx1
-    W[0,0][(1,0)] = -2*W[0,0][(2,0)]*dx1
+    W[0,0].x0 = [-1, 0]
     W[1,1] = deepcopy(W[0,0])
-    W[1,1][(0,0)] = W[0,0][(2,0)]*dx2**2 #- W[0,0][(1,0)]*dx2
-    W[1,1][(1,0)] = -2*W[0,0][(2,0)]*dx2
-    W[0,1] = NdPoly({(0,1): 5E-1})
-    
-    Xg, Yg = np.mgrid[-2:2:51j, -2:2:51j]
+    W[1,1].x0 = [1, 0]
+    W[0,1] = NdPoly({(0,1): 1})
+    W.set_damping((0,1),1,Gaussian(0,2.0))
+
+    Xg, Yg = np.mgrid[-2:2:21j, -2:2:21j]
     X = np.vstack((Xg.ravel(), Yg.ravel())).transpose()
-    E = W(X).diagonal(axis1=1, axis2=2)
+    E, _ = adiabatic(W(X))
 
     Wguess = SymPolyMat.zero_like(W)
     Wguess[0,0][(1,0)] = 0.1
     Wguess[1,1][(1,0)] = -0.1
 
-    return X, E, Wguess
+    return X, E, Wguess, W
 
 
 def main():
